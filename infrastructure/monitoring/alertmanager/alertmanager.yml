@@ -1,0 +1,201 @@
+# ============================================================================
+# Alertmanager Configuration for DeepAgents Control Platform
+# ============================================================================
+
+global:
+  # Default SMTP settings for email notifications
+  smtp_from: 'alerts@yourdomain.com'
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_auth_username: 'alerts@yourdomain.com'
+  smtp_auth_password: 'your-smtp-password'
+  smtp_require_tls: true
+
+  # Slack API URL (if using Slack)
+  # slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+# Templates for custom alert messages
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# The root route for all alerts
+route:
+  # Default receiver for all alerts
+  receiver: 'default'
+
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service']
+
+  # How long to wait before sending the first notification
+  group_wait: 10s
+
+  # How long to wait before sending notifications about new alerts added to a group
+  group_interval: 10s
+
+  # How long to wait before re-sending a notification
+  repeat_interval: 12h
+
+  # Child routes for specific alert handling
+  routes:
+    # Critical alerts go to multiple channels
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+
+    # Warning alerts go to Slack only
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+
+    # Info alerts go to a separate channel
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+
+    # Database alerts go to DBA team
+    - match:
+        component: database
+      receiver: 'database-team'
+      continue: true
+
+    # Backend alerts go to backend team
+    - match:
+        component: backend
+      receiver: 'backend-team'
+      continue: true
+
+# Alert receivers (notification channels)
+receivers:
+  # ============================================================================
+  # Default receiver (fallback)
+  # ============================================================================
+  - name: 'default'
+    email_configs:
+      - to: 'ops-team@yourdomain.com'
+        headers:
+          Subject: '[DeepAgents] {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Summary:</strong> {{ .CommonAnnotations.summary }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .CommonAnnotations.startsAt }}</p>
+
+  # ============================================================================
+  # Critical alerts - Email + Slack + PagerDuty
+  # ============================================================================
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'oncall@yourdomain.com,ops-team@yourdomain.com'
+        headers:
+          Subject: '[CRITICAL] DeepAgents Alert: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+    # Slack notification for critical alerts
+    # Uncomment and configure:
+    # slack_configs:
+    #   - channel: '#critical-alerts'
+    #     title: 'CRITICAL: {{ .GroupLabels.alertname }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+    #     send_resolved: true
+    #     color: 'danger'
+
+    # PagerDuty integration for critical alerts
+    # Uncomment and configure:
+    # pagerduty_configs:
+    #   - service_key: 'your-pagerduty-service-key'
+    #     description: '{{ .GroupLabels.alertname }}: {{ .CommonAnnotations.summary }}'
+
+  # ============================================================================
+  # Warning alerts - Slack only
+  # ============================================================================
+  - name: 'warning-alerts'
+    # Uncomment and configure Slack:
+    # slack_configs:
+    #   - channel: '#alerts'
+    #     title: 'Warning: {{ .GroupLabels.alertname }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+    #     send_resolved: true
+    #     color: 'warning'
+
+    # Email as fallback
+    email_configs:
+      - to: 'ops-team@yourdomain.com'
+        headers:
+          Subject: '[WARNING] DeepAgents: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+  # ============================================================================
+  # Info alerts - Email only
+  # ============================================================================
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'ops-team@yourdomain.com'
+        headers:
+          Subject: '[INFO] DeepAgents: {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+  # ============================================================================
+  # Database team alerts
+  # ============================================================================
+  - name: 'database-team'
+    email_configs:
+      - to: 'dba-team@yourdomain.com'
+        headers:
+          Subject: '[Database Alert] {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+    # Uncomment for Slack:
+    # slack_configs:
+    #   - channel: '#database-alerts'
+    #     title: 'Database: {{ .GroupLabels.alertname }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+
+  # ============================================================================
+  # Backend team alerts
+  # ============================================================================
+  - name: 'backend-team'
+    email_configs:
+      - to: 'backend-team@yourdomain.com'
+        headers:
+          Subject: '[Backend Alert] {{ .GroupLabels.alertname }}'
+        send_resolved: true
+
+    # Uncomment for Slack:
+    # slack_configs:
+    #   - channel: '#backend-alerts'
+    #     title: 'Backend: {{ .GroupLabels.alertname }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+
+# Inhibition rules - suppress certain alerts when others are active
+inhibit_rules:
+  # If a critical alert is firing, suppress warning alerts for the same service
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service', 'instance']
+
+  # If a service is down, suppress all other alerts for that service
+  - source_match:
+      alertname: 'BackendDown|PostgreSQLDown|RedisDown'
+    target_match_re:
+      alertname: '.*'
+    equal: ['service', 'instance']
+
+  # If disk is critically low, suppress warning level disk alerts
+  - source_match:
+      alertname: 'DiskSpaceCritical'
+    target_match:
+      alertname: 'DiskSpaceLow'
+    equal: ['instance', 'mountpoint']
+
+# ============================================================================
+# Configuration Notes
+# ============================================================================
+# 1. Update SMTP settings with your email provider
+# 2. For Gmail: Enable "App Passwords" and use that instead of your regular password
+# 3. For Slack: Create a webhook at https://api.slack.com/messaging/webhooks
+# 4. For PagerDuty: Create an integration key in your PagerDuty service
+# 5. Test alert routing with: amtool alert add
+# 6. View active alerts at: http://localhost:9093

@@ -1,0 +1,34 @@
+# ============================================================================
+# Grafana Dashboard Provisioning
+# ============================================================================
+# This file tells Grafana where to find dashboard JSON files
+
+apiVersion: 1
+
+providers:
+  # ============================================================================
+  # DeepAgents Platform Dashboards
+  # ============================================================================
+  - name: 'DeepAgents Dashboards'
+    orgId: 1
+    folder: 'DeepAgents Platform'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true
+
+  # ============================================================================
+  # System Dashboards
+  # ============================================================================
+  - name: 'System Dashboards'
+    orgId: 1
+    folder: 'System'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/system

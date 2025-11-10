@@ -1,0 +1,293 @@
+version: '3.9'
+
+# Production Docker Compose Configuration for DeepAgents Control Platform
+# This file defines all services needed for production deployment
+
+services:
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  postgres:
+    image: postgres:17.6-alpine
+    container_name: deepagents-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deepagents_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-deepagents}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+
+    volumes:
+      # Persistent data storage
+      - postgres_data:/var/lib/postgresql/data
+      # Custom PostgreSQL configuration
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      # Initialization scripts (if needed)
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+
+    # Use custom configuration
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-deepagents} -d ${POSTGRES_DB:-deepagents_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+    networks:
+      - deepagents-network
+
+    # Only expose port for debugging (comment out in production)
+    # ports:
+    #   - "5432:5432"
+
+  # ============================================================================
+  # Redis Cache
+  # ============================================================================
+  redis:
+    image: redis:7.4.6-alpine
+    container_name: deepagents-redis
+    restart: unless-stopped
+
+    # Enable AOF persistence for data durability
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+
+    volumes:
+      # Persistent data storage
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    networks:
+      - deepagents-network
+
+    # Only expose port for debugging (comment out in production)
+    # ports:
+    #   - "6379:6379"
+
+  # ============================================================================
+  # Backend API (FastAPI)
+  # ============================================================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.prod
+    container_name: deepagents-backend
+    restart: unless-stopped
+
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-deepagents}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-deepagents_prod}
+
+      # Redis configuration
+      REDIS_URL: redis://redis:6379
+
+      # Security
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+
+      # API Keys
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+
+      # Application settings
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: "False"
+
+      # CORS settings
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://yourdomain.com}
+
+      # Database pool settings
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
+
+      # Uvicorn workers
+      WORKERS: ${BACKEND_WORKERS:-4}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+    networks:
+      - deepagents-network
+
+    # Only expose port for debugging (comment out in production)
+    # ports:
+    #   - "8000:8000"
+
+  # ============================================================================
+  # Frontend (React build)
+  # ============================================================================
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.prod
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-/api}
+        REACT_APP_WS_URL: ${REACT_APP_WS_URL:-/api}
+    container_name: deepagents-frontend
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    networks:
+      - deepagents-network
+
+  # ============================================================================
+  # Nginx Reverse Proxy
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: deepagents-nginx
+    restart: unless-stopped
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      # Nginx configuration
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl.conf:/etc/nginx/ssl.conf:ro
+
+      # SSL certificates (Let's Encrypt)
+      - ./ssl/certs:/etc/nginx/ssl:ro
+
+      # Let's Encrypt ACME challenge
+      - ./ssl/certbot-www:/var/www/certbot:ro
+
+      # Frontend static files from frontend container
+      - frontend_static:/usr/share/nginx/html:ro
+
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    networks:
+      - deepagents-network
+
+  # ============================================================================
+  # Certbot (Let's Encrypt SSL certificates)
+  # ============================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: deepagents-certbot
+
+    volumes:
+      - ./ssl/certs:/etc/letsencrypt
+      - ./ssl/certbot-www:/var/www/certbot
+
+    # This container only runs when manually invoked for certificate renewal
+    # Use: docker-compose -f docker-compose.prod.yml run --rm certbot certonly ...
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 12h & wait $${!}; certbot renew; done;'"
+
+    networks:
+      - deepagents-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  frontend_static:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  deepagents-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

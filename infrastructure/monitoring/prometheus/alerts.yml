@@ -1,0 +1,306 @@
+# ============================================================================
+# Prometheus Alert Rules for DeepAgents Control Platform
+# ============================================================================
+
+groups:
+  # ============================================================================
+  # Service Availability Alerts
+  # ============================================================================
+  - name: service_availability
+    interval: 30s
+    rules:
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend API has been down for more than 30 seconds. Immediate attention required."
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been down for more than 30 seconds. All operations are affected."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis has been down for more than 1 minute. Caching is unavailable."
+
+      - alert: NginxDown
+        expr: up{job="nginx"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: proxy
+        annotations:
+          summary: "Nginx reverse proxy is down"
+          description: "Nginx has been down for more than 30 seconds. Users cannot access the platform."
+
+  # ============================================================================
+  # System Resource Alerts
+  # ============================================================================
+  - name: system_resources
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for more than 5 minutes on {{ $labels.instance }}."
+
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is above 95% for more than 2 minutes on {{ $labels.instance }}. System may be unresponsive."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 90% for more than 5 minutes on {{ $labels.instance }}."
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is above 95% on {{ $labels.instance }}. System may start swapping or crash."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Disk space is running low"
+          description: "Less than 10% disk space available on {{ $labels.mountpoint }} ({{ $labels.instance }})."
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"}) * 100 < 5
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Disk space is critically low"
+          description: "Less than 5% disk space available on {{ $labels.mountpoint }} ({{ $labels.instance }}). Database writes may fail."
+
+  # ============================================================================
+  # Application Performance Alerts
+  # ============================================================================
+  - name: application_performance
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "More than 5% of requests are returning 5xx errors for the last 5 minutes."
+
+      - alert: CriticalErrorRate
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 10
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Critical error rate detected"
+          description: "More than 10% of requests are failing. Service is severely degraded."
+
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "Slow API response times"
+          description: "95th percentile response time is above 2 seconds for the last 5 minutes."
+
+      - alert: VerySlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Very slow API response times"
+          description: "95th percentile response time is above 5 seconds. User experience is severely impacted."
+
+  # ============================================================================
+  # Database Alerts
+  # ============================================================================
+  - name: database_health
+    interval: 30s
+    rules:
+      - alert: PostgreSQLTooManyConnections
+        expr: sum(pg_stat_activity_count) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "PostgreSQL has too many connections"
+          description: "More than 80 active connections to PostgreSQL. Connection pool may be exhausted soon."
+
+      - alert: PostgreSQLConnectionPoolExhausted
+        expr: sum(pg_stat_activity_count) > 95
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL connection pool nearly exhausted"
+          description: "More than 95 active connections. New connection requests may be rejected."
+
+      - alert: PostgreSQLSlowQueries
+        expr: rate(pg_stat_activity_max_tx_duration[5m]) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "PostgreSQL has slow queries"
+          description: "Queries are taking longer than 30 seconds. Database performance is degraded."
+
+      - alert: PostgreSQLReplicationLag
+        expr: pg_replication_lag > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "PostgreSQL replication lag detected"
+          description: "Replication lag is more than 10 seconds. Replica may be falling behind."
+
+  # ============================================================================
+  # Redis Cache Alerts
+  # ============================================================================
+  - name: redis_health
+    interval: 30s
+    rules:
+      - alert: RedisHighMemoryUsage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis is using more than 80% of allocated memory. Keys may start being evicted."
+
+      - alert: RedisCriticalMemoryUsage
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis memory usage is critical"
+          description: "Redis is using more than 95% of allocated memory. Performance will be degraded."
+
+      - alert: RedisRejectedConnections
+        expr: increase(redis_rejected_connections_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis is rejecting connections"
+          description: "Redis has rejected connections in the last 5 minutes. maxclients may need to be increased."
+
+  # ============================================================================
+  # Agent Execution Alerts
+  # ============================================================================
+  - name: agent_execution
+    interval: 30s
+    rules:
+      - alert: HighAgentExecutionFailureRate
+        expr: (rate(agent_executions_total{status="failed"}[10m]) / rate(agent_executions_total[10m])) * 100 > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High agent execution failure rate"
+          description: "More than 20% of agent executions are failing in the last 10 minutes."
+
+      - alert: NoAgentExecutions
+        expr: rate(agent_executions_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: info
+          component: backend
+        annotations:
+          summary: "No agent executions detected"
+          description: "No agent executions have occurred in the last 30 minutes. This may be expected during off-hours."
+
+      - alert: LongRunningAgentExecution
+        expr: agent_execution_duration_seconds > 600
+        for: 1m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "Agent execution running for a long time"
+          description: "An agent execution has been running for more than 10 minutes on {{ $labels.agent_id }}."
+
+  # ============================================================================
+  # Container Health Alerts
+  # ============================================================================
+  - name: container_health
+    interval: 30s
+    rules:
+      - alert: ContainerRestarting
+        expr: rate(container_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: docker
+        annotations:
+          summary: "Container is restarting"
+          description: "Container {{ $labels.container }} has restarted {{ $value }} times in the last 15 minutes."
+
+      - alert: ContainerOOMKilled
+        expr: container_oom_kills_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: docker
+        annotations:
+          summary: "Container was OOM killed"
+          description: "Container {{ $labels.container }} was killed due to Out Of Memory. Increase memory limits."

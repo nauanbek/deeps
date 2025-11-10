@@ -1,0 +1,113 @@
+# ============================================================================
+# Prometheus Configuration for DeepAgents Control Platform
+# ============================================================================
+
+global:
+  # How frequently to scrape targets
+  scrape_interval: 15s
+  # How long until a scrape request times out
+  scrape_timeout: 10s
+  # How frequently to evaluate rules
+  evaluation_interval: 15s
+
+  # External labels to attach to any time series or alerts
+  external_labels:
+    cluster: 'deepagents-platform'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # Prometheus itself
+  # ============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # ============================================================================
+  # Backend API (FastAPI)
+  # ============================================================================
+  - job_name: 'backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['deepagents-backend:8000']
+        labels:
+          service: 'backend'
+          component: 'api'
+
+    # Scrape more frequently for application metrics
+    scrape_interval: 10s
+
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          component: 'database'
+
+    # Scrape less frequently for database metrics
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Redis Cache
+  # ============================================================================
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          component: 'cache'
+
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Node Exporter (System Metrics)
+  # ============================================================================
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+          component: 'system'
+
+    scrape_interval: 30s
+
+  # ============================================================================
+  # Nginx (if metrics enabled)
+  # ============================================================================
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['deepagents-nginx:9113']
+        labels:
+          service: 'nginx'
+          component: 'proxy'
+
+    scrape_interval: 30s
+
+# ============================================================================
+# Recording Rules (pre-compute expensive queries)
+# ============================================================================
+# These rules pre-calculate metrics to speed up dashboard queries
+
+# Example recording rules (uncomment and customize):
+# - name: http_request_rate
+#   interval: 30s
+#   rules:
+#     - record: job:http_requests_total:rate5m
+#       expr: rate(http_requests_total[5m])

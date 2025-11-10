@@ -1,0 +1,89 @@
+# ============================================================================
+# Grafana Datasource Provisioning
+# ============================================================================
+# This file automatically configures data sources when Grafana starts
+
+apiVersion: 1
+
+datasources:
+  # ============================================================================
+  # Prometheus - Main metrics datasource
+  # ============================================================================
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+    jsonData:
+      # Query timeout
+      timeInterval: 15s
+
+      # HTTP method for queries
+      httpMethod: POST
+
+      # Custom query parameters
+      customQueryParameters: ''
+
+      # Enable exemplars (for trace integration)
+      exemplarTraceIdDestinations: []
+
+    # Set to true to use basic auth
+    # basicAuth: false
+    # basicAuthUser: admin
+
+    # Set credentials if needed
+    # secureJsonData:
+    #   basicAuthPassword: password
+
+  # ============================================================================
+  # Alertmanager - Alert status datasource
+  # ============================================================================
+  - name: Alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    editable: true
+
+    jsonData:
+      # Implementation type
+      implementation: prometheus
+
+      # Handle Grafana managed alerts
+      handleGrafanaManagedAlerts: false
+
+# ============================================================================
+# Additional datasources (optional)
+# ============================================================================
+# Uncomment and configure if using Loki for logs:
+#
+#   - name: Loki
+#     type: loki
+#     access: proxy
+#     url: http://loki:3100
+#     editable: true
+#     jsonData:
+#       maxLines: 1000
+#       derivedFields:
+#         - datasourceUid: tempo
+#           matcherRegex: "trace_id=(\\w+)"
+#           name: TraceID
+#           url: "$${__value.raw}"
+
+# Uncomment and configure if using Tempo for traces:
+#
+#   - name: Tempo
+#     type: tempo
+#     access: proxy
+#     url: http://tempo:3200
+#     editable: true
+#     jsonData:
+#       tracesToLogs:
+#         datasourceUid: loki
+#         filterByTraceID: true
+#         filterBySpanID: false
+#       serviceMap:
+#         datasourceUid: prometheus
+#       nodeGraph:
+#         enabled: true

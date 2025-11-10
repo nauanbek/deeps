@@ -1,0 +1,158 @@
+# ============================================================================
+# Promtail Configuration for DeepAgents Control Platform
+# ============================================================================
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+# Position tracking (where promtail left off)
+positions:
+  filename: /tmp/positions.yaml
+
+# Loki client configuration
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # Docker Container Logs
+  # ============================================================================
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+
+    relabel_configs:
+      # Only collect logs from containers with specific labels
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(deepagents-.*)'
+        action: keep
+
+      # Add container name as label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+
+      # Add container ID as label
+      - source_labels: ['__meta_docker_container_id']
+        target_label: 'container_id'
+
+      # Add service name from Docker labels
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+
+      # Add project name from Docker labels
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'project'
+
+      # Add environment label
+      - replacement: 'production'
+        target_label: 'environment'
+
+    # Pipeline stages to parse and label logs
+    pipeline_stages:
+      # ========================================================================
+      # JSON Log Parsing
+      # ========================================================================
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            service: service
+            module: module
+            function: function
+            error: error
+
+      # Extract log level
+      - labels:
+          level:
+
+      # Set timestamp from log entry
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+
+      # ========================================================================
+      # Backend-specific parsing
+      # ========================================================================
+      - match:
+          selector: '{service="backend"}'
+          stages:
+            # Parse HTTP request logs
+            - regex:
+                expression: '^(?P<method>[A-Z]+) (?P<path>/[^ ]*) (?P<status>\d{3})'
+                source: message
+            - labels:
+                method:
+                status:
+
+            # Extract error information
+            - regex:
+                expression: 'Error: (?P<error_message>.*)'
+                source: message
+            - labels:
+                error_type: error_message
+
+      # ========================================================================
+      # Database log parsing
+      # ========================================================================
+      - match:
+          selector: '{service="postgres"}'
+          stages:
+            # Parse PostgreSQL logs
+            - regex:
+                expression: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d+ UTC \[(?P<pid>\d+)\] (?P<level>[A-Z]+):'
+                source: message
+            - labels:
+                level:
+
+      # ========================================================================
+      # Redis log parsing
+      # ========================================================================
+      - match:
+          selector: '{service="redis"}'
+          stages:
+            # Parse Redis logs
+            - regex:
+                expression: '^\d+:[A-Z] \d+ [A-Za-z]+ \d{4} \d{2}:\d{2}:\d{2}.\d+ [*#] (?P<message>.*)'
+                source: message
+
+  # ============================================================================
+  # Application File Logs (if writing to files)
+  # ============================================================================
+  - job_name: application_logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: app_logs
+          environment: production
+          __path__: /var/log/app/*.log
+
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            service: service
+
+      - labels:
+          level:
+
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+
+# Limits configuration
+limits_config:
+  # Rate limiting
+  readline_rate: 1000
+  readline_burst: 2000
+
+  # Max line size (in bytes)
+  max_line_size: 256000

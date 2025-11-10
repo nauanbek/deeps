@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+/* Reusable component styles */
+@layer components {
+  /* Base input styling */
+  .input-base {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+    @apply disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed;
+    @apply transition-colors duration-200;
+  }
+
+  /* Input with error state */
+  .input-error {
+    @apply input-base border-red-300 focus:ring-red-500 focus:border-red-500;
+  }
+
+  /* Card base styling */
+  .card-base {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200;
+  }
+
+  /* Interactive card with hover effect */
+  .card-interactive {
+    @apply card-base transition-shadow duration-200 hover:shadow-md cursor-pointer;
+  }
+
+  /* Touch target helper for buttons */
+  .btn-touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}
+
+/* Custom animations */
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* Screen reader only - visually hidden but accessible */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .focus\:not-sr-only:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}

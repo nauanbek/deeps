@@ -1,0 +1,168 @@
+# ============================================================================
+# Backup Configuration for DeepAgents Control Platform
+# ============================================================================
+
+# Backup schedule (cron format)
+schedule:
+  # Daily backup at 2 AM UTC
+  daily: "0 2 * * *"
+  # Weekly backup on Sunday at 3 AM UTC
+  weekly: "0 3 * * 0"
+  # Monthly backup on 1st of month at 4 AM UTC
+  monthly: "0 4 1 * *"
+
+# Retention policy
+retention:
+  # Number of daily backups to keep
+  daily: 7
+  # Number of weekly backups to keep
+  weekly: 4
+  # Number of monthly backups to keep
+  monthly: 12
+
+# Backup targets
+targets:
+  # PostgreSQL database backup
+  postgresql:
+    enabled: true
+    host: "${POSTGRES_HOST:-postgres}"
+    port: "${POSTGRES_PORT:-5432}"
+    database: "${POSTGRES_DB:-deepagents_prod}"
+    user: "${POSTGRES_USER:-deepagents}"
+    password: "${POSTGRES_PASSWORD}"
+    # Use pg_dump with custom format
+    format: "custom"
+    # Compression level (0-9, 9 is maximum)
+    compression: 9
+
+  # Redis backup (RDB snapshot)
+  redis:
+    enabled: true
+    host: "${REDIS_HOST:-redis}"
+    port: "${REDIS_PORT:-6379}"
+    # Save RDB snapshot
+    save_rdb: true
+
+  # File uploads and user data
+  files:
+    enabled: true
+    paths:
+      - "/var/lib/deepagents/uploads"
+      - "/var/lib/deepagents/user-data"
+
+  # Application configuration
+  config:
+    enabled: true
+    paths:
+      - "/app/.env.prod"
+      - "/app/infrastructure/nginx"
+      - "/app/infrastructure/ssl"
+
+# Storage destinations
+storage:
+  # Local storage (always enabled)
+  local:
+    enabled: true
+    path: "/var/backups/deepagents"
+    # Keep backups for 7 days locally
+    retention_days: 7
+
+  # S3-compatible storage
+  s3:
+    enabled: "${S3_BACKUP_ENABLED:-false}"
+    bucket: "${S3_BACKUP_BUCKET:-deepagents-backups}"
+    region: "${AWS_REGION:-us-east-1}"
+    access_key: "${AWS_ACCESS_KEY_ID}"
+    secret_key: "${AWS_SECRET_ACCESS_KEY}"
+    # S3 storage class (STANDARD, INTELLIGENT_TIERING, GLACIER)
+    storage_class: "INTELLIGENT_TIERING"
+    # Encryption
+    encryption: "AES256"
+    # Keep backups in S3 for 90 days
+    retention_days: 90
+
+  # Google Cloud Storage
+  gcs:
+    enabled: "${GCS_BACKUP_ENABLED:-false}"
+    bucket: "${GCS_BACKUP_BUCKET}"
+    project: "${GCS_PROJECT_ID}"
+    credentials_file: "${GCS_CREDENTIALS_FILE}"
+    retention_days: 90
+
+# Encryption
+encryption:
+  # Enable backup encryption
+  enabled: true
+  # Encryption algorithm (AES-256-CBC)
+  algorithm: "AES-256-CBC"
+  # Path to encryption key (should be in secure storage)
+  key_file: "${BACKUP_ENCRYPTION_KEY_FILE:-/etc/deepagents/backup.key}"
+
+# Compression
+compression:
+  # Enable compression
+  enabled: true
+  # Compression algorithm (gzip, bzip2, xz)
+  algorithm: "gzip"
+  # Compression level (1-9)
+  level: 6
+
+# Notifications
+notifications:
+  # Email notifications
+  email:
+    enabled: "${EMAIL_NOTIFICATIONS_ENABLED:-false}"
+    recipients:
+      - "ops-team@yourdomain.com"
+    smtp_host: "${SMTP_HOST}"
+    smtp_port: "${SMTP_PORT:-587}"
+    smtp_user: "${SMTP_USER}"
+    smtp_password: "${SMTP_PASSWORD}"
+    # Send on success
+    on_success: false
+    # Send on failure
+    on_failure: true
+
+  # Slack notifications
+  slack:
+    enabled: "${SLACK_NOTIFICATIONS_ENABLED:-false}"
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#ops-alerts"
+    on_success: false
+    on_failure: true
+
+# Backup verification
+verification:
+  # Enable backup verification
+  enabled: true
+  # Verify checksums
+  checksum: true
+  # Test restore on a sample
+  test_restore: false
+
+# Logging
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR)
+  level: "INFO"
+  # Log file path
+  file: "/var/log/deepagents/backup.log"
+  # Max log file size (MB)
+  max_size_mb: 100
+  # Number of log files to keep
+  max_backups: 10
+
+# Performance
+performance:
+  # Parallel backup jobs
+  parallel_jobs: 2
+  # Network bandwidth limit (MB/s, 0 for unlimited)
+  bandwidth_limit_mbps: 0
+  # I/O priority (0-7, lower is less priority)
+  io_priority: 4
+
+# Recovery Time Objective (RTO) and Recovery Point Objective (RPO)
+sla:
+  # Maximum acceptable downtime (hours)
+  rto_hours: 4
+  # Maximum acceptable data loss (hours)
+  rpo_hours: 24

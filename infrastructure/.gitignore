@@ -1,0 +1,29 @@
+# Environment files (contain secrets)
+.env.prod
+.env.production
+.env.local
+
+# SSL certificates and keys
+ssl/certs/*.pem
+ssl/certs/*.crt
+ssl/certs/*.key
+ssl/certbot-www/*
+
+# Backups (can be large)
+backups/*.sql
+backups/*.sql.gz
+backups/*.rdb
+backups/*.rdb.gz
+backups/*.manifest
+
+# PostgreSQL data directory (if mounted locally)
+postgres/data/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
