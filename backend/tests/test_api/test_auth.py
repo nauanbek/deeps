@@ -312,3 +312,233 @@ def test_logout_without_token(client: TestClient):
 
     # Should still succeed since JWT is stateless
     assert response.status_code == 200
+
+
+# ============================================================================
+# GET /auth/lockout-status/{username} - Account Lockout Status Tests
+# ============================================================================
+
+
+def test_get_lockout_status_unlocked_account(
+    client: TestClient, test_user: User, auth_headers: dict, clean_redis
+):
+    """Test getting lockout status for an unlocked account."""
+    response = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["locked"] is False
+    assert data["failed_attempts"] == 0
+    assert data["remaining_attempts"] == 5
+    assert data["unlocks_in_seconds"] == 0
+    assert data["max_attempts"] == 5
+
+
+def test_get_lockout_status_with_failed_attempts(
+    client: TestClient, test_user: User, auth_headers: dict, clean_redis
+):
+    """Test lockout status after failed login attempts."""
+    # Make 2 failed login attempts
+    for _ in range(2):
+        client.post(
+            "/api/v1/auth/login",
+            json={"username": test_user.username, "password": "WrongPassword123"}
+        )
+
+    # Check status
+    response = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["locked"] is False
+    assert data["failed_attempts"] == 2
+    assert data["remaining_attempts"] == 3
+
+
+def test_get_lockout_status_locked_account(
+    client: TestClient, test_user: User, auth_headers: dict, clean_redis
+):
+    """Test lockout status for a locked account (5 failed attempts)."""
+    # Make 5 failed login attempts to lock the account
+    for _ in range(5):
+        client.post(
+            "/api/v1/auth/login",
+            json={"username": test_user.username, "password": "WrongPassword123"}
+        )
+
+    # Check status
+    response = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["locked"] is True
+    assert data["remaining_attempts"] == 0
+    assert data["unlocks_in_seconds"] > 0
+    assert data["unlocks_in_seconds"] <= 900  # 15 minutes
+
+
+def test_get_lockout_status_requires_authentication(
+    client: TestClient, test_user: User
+):
+    """Test that lockout status endpoint requires authentication."""
+    response = client.get(f"/api/v1/auth/lockout-status/{test_user.username}")
+
+    assert response.status_code == 403  # Forbidden without auth
+
+
+# ============================================================================
+# POST /auth/unlock-account/{username} - Admin Unlock Tests
+# ============================================================================
+
+
+def test_unlock_locked_account(
+    client: TestClient, test_user: User, auth_headers: dict, clean_redis
+):
+    """Test manually unlocking a locked account (admin function)."""
+    # Lock the account by making 5 failed attempts
+    for _ in range(5):
+        client.post(
+            "/api/v1/auth/login",
+            json={"username": test_user.username, "password": "WrongPassword123"}
+        )
+
+    # Verify account is locked
+    response = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    )
+    assert response.json()["locked"] is True
+
+    # Unlock the account
+    response = client.post(
+        f"/api/v1/auth/unlock-account/{test_user.username}",
+        headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["was_locked"] is True
+    assert "unlocked" in data["message"].lower()
+
+    # Verify account is now unlocked
+    status_response = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    )
+    assert status_response.json()["locked"] is False
+
+    # User should be able to login now
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user.username, "password": "TestPass123"}
+    )
+    assert login_response.status_code == 200
+
+
+def test_unlock_already_unlocked_account(
+    client: TestClient, test_user: User, auth_headers: dict, clean_redis
+):
+    """Test unlocking an account that is not locked."""
+    response = client.post(
+        f"/api/v1/auth/unlock-account/{test_user.username}",
+        headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["was_locked"] is False
+    assert "not locked" in data["message"].lower()
+
+
+def test_unlock_account_requires_authentication(
+    client: TestClient, test_user: User
+):
+    """Test that unlock endpoint requires authentication."""
+    response = client.post(f"/api/v1/auth/unlock-account/{test_user.username}")
+
+    assert response.status_code == 403  # Forbidden without auth
+
+
+def test_unlock_nonexistent_user(
+    client: TestClient, auth_headers: dict, clean_redis
+):
+    """Test unlocking a user that doesn't exist."""
+    response = client.post(
+        "/api/v1/auth/unlock-account/nonexistent_user",
+        headers=auth_headers
+    )
+
+    # Should succeed with was_locked=False (user doesn't have lockout record)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["was_locked"] is False
+
+
+# ============================================================================
+# Account Lockout Integration Tests
+# ============================================================================
+
+
+def test_login_locked_account_returns_429(
+    client: TestClient, test_user: User, clean_redis
+):
+    """Test that login to locked account returns 429 Too Many Requests."""
+    # Lock the account
+    for _ in range(5):
+        client.post(
+            "/api/v1/auth/login",
+            json={"username": test_user.username, "password": "WrongPassword123"}
+        )
+
+    # Attempt to login (even with correct password)
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user.username, "password": "TestPass123"}
+    )
+
+    assert response.status_code == 429  # Too Many Requests
+    assert "locked" in response.json()["detail"].lower()
+    assert "Retry-After" in response.headers
+    assert response.headers["Retry-After"] == "900"  # 15 minutes
+
+
+def test_successful_login_clears_failed_attempts(
+    client: TestClient, test_user: User, auth_headers: dict, clean_redis
+):
+    """Test that successful login clears failed attempts counter."""
+    # Make 3 failed attempts
+    for _ in range(3):
+        client.post(
+            "/api/v1/auth/login",
+            json={"username": test_user.username, "password": "WrongPassword123"}
+        )
+
+    # Check status - should have 3 failed attempts
+    status = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    ).json()
+    assert status["failed_attempts"] == 3
+
+    # Successful login
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user.username, "password": "TestPass123"}
+    )
+    assert login_response.status_code == 200
+
+    # Check status - failed attempts should be cleared
+    status = client.get(
+        f"/api/v1/auth/lockout-status/{test_user.username}",
+        headers=auth_headers
+    ).json()
+    assert status["failed_attempts"] == 0
