@@ -11,6 +11,8 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from core.password_validator import validate_password
+
 
 # Token Schemas
 class Token(BaseModel):
@@ -63,16 +65,25 @@ class UserRegister(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        """Validate password meets minimum strength requirements."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        """
+        Validate password meets comprehensive strength requirements.
 
-        # Check for at least one letter and one number (basic strength)
-        has_letter = any(c.isalpha() for c in v)
-        has_number = any(c.isdigit() for c in v)
+        Requirements:
+        - At least 8 characters long
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one digit
+        - Not a common password
 
-        if not (has_letter and has_number):
-            raise ValueError("Password must contain at least one letter and one number")
+        Raises:
+            ValueError: If password doesn't meet requirements
+        """
+        is_valid, errors = validate_password(v)
+
+        if not is_valid:
+            # Join all error messages into a single error
+            error_message = "; ".join(errors)
+            raise ValueError(error_message)
 
         return v
 
@@ -109,15 +120,25 @@ class PasswordChange(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_new_password(cls, v: str) -> str:
-        """Validate new password meets strength requirements."""
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        """
+        Validate new password meets comprehensive strength requirements.
 
-        has_letter = any(c.isalpha() for c in v)
-        has_number = any(c.isdigit() for c in v)
+        Requirements:
+        - At least 8 characters long
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one digit
+        - Not a common password
 
-        if not (has_letter and has_number):
-            raise ValueError("Password must contain at least one letter and one number")
+        Raises:
+            ValueError: If password doesn't meet requirements
+        """
+        is_valid, errors = validate_password(v)
+
+        if not is_valid:
+            # Join all error messages into a single error
+            error_message = "; ".join(errors)
+            raise ValueError(error_message)
 
         return v
 

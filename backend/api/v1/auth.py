@@ -24,6 +24,8 @@ from schemas.auth import (
 )
 from services.auth_service import AuthService
 from services.lockout_service import get_lockout_service
+from core.password_validator import calculate_password_strength
+from pydantic import BaseModel
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -222,3 +224,43 @@ async def unlock_account(
             "message": f"Account '{username}' was not locked",
             "was_locked": False
         }
+
+
+# ============================================================================
+# Password Strength Check
+# ============================================================================
+
+
+class PasswordStrengthRequest(BaseModel):
+    """Request model for password strength check."""
+    password: str
+
+
+@router.post("/check-password-strength", status_code=status.HTTP_200_OK)
+async def check_password_strength(request: PasswordStrengthRequest):
+    """
+    Check password strength and get improvement suggestions.
+
+    This endpoint does NOT require authentication and can be called
+    during registration or password change to provide real-time feedback.
+
+    Args:
+        request: Password strength check request
+
+    Returns:
+        Dictionary with:
+            - strength (str): Strength level (very_weak, weak, medium, strong, very_strong)
+            - score (int): Numeric strength score (0-120+)
+            - suggestions (list): List of improvement suggestions
+
+    Example:
+        POST /api/v1/auth/check-password-strength
+        Body: {"password": "MyP@ssw0rd!"}
+        Response: {
+            "strength": "strong",
+            "score": 75,
+            "suggestions": ["Use at least 12 characters for better security"]
+        }
+    """
+    result = calculate_password_strength(request.password)
+    return result
