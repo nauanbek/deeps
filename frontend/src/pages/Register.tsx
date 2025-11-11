@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserPlusIcon, UserIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { Input } from '../components/common/Input';
+import { PasswordStrengthMeter } from '../components/common/PasswordStrengthMeter';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -184,20 +185,25 @@ const Register: React.FC = () => {
               iconPosition="left"
             />
 
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              label="Password"
-              autoComplete="new-password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              error={errors.password}
-              placeholder="Min 8 characters with letter and number"
-              icon={<LockClosedIcon className="h-5 w-5" />}
-              iconPosition="left"
-            />
+            <div>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                label="Password"
+                autoComplete="new-password"
+                required
+                value={formData.password}
+                onChange={handleChange}
+                error={errors.password}
+                placeholder="Create a strong password"
+                icon={<LockClosedIcon className="h-5 w-5" />}
+                iconPosition="left"
+              />
+              <div className="mt-2">
+                <PasswordStrengthMeter password={formData.password} />
+              </div>
+            </div>
 
             <Input
               id="confirmPassword"
