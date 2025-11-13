@@ -68,8 +68,10 @@ services:
 
     environment:
       # Security
+      # ⚠️ CRITICAL: Change default admin credentials immediately!
+      # See docs/CREDENTIALS.md for detailed instructions
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-CHANGE_ME_INSECURE_DEFAULT}
 
       # Server settings
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
