@@ -1,0 +1,33 @@
+# PostgreSQL Client Authentication Configuration (SSL Enabled)
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+# Local connections
+local   all             all                                     scram-sha-256
+
+# IPv4 local connections (no SSL required for localhost)
+host    all             all             127.0.0.1/32           scram-sha-256
+
+# IPv6 local connections
+host    all             all             ::1/128                scram-sha-256
+
+# SSL-required connections from application servers
+# Require SSL for all remote connections
+hostssl all             all             0.0.0.0/0              scram-sha-256
+
+# SSL-required connections for specific IPs (more secure)
+# hostssl deepagents_platform    deepagents    10.0.0.0/8         scram-sha-256
+# hostssl deepagents_platform    deepagents    172.16.0.0/12      scram-sha-256
+
+# Reject non-SSL connections from remote hosts
+hostnossl all           all             0.0.0.0/0              reject
+
+# Notes:
+# - Local connections (127.0.0.1) don't require SSL
+# - All remote connections MUST use SSL (hostssl)
+# - Non-SSL remote connections are rejected (hostnossl)
+# - Use scram-sha-256 for password authentication (more secure than md5)
+#
+# To apply changes:
+# 1. Copy this file to PostgreSQL data directory
+# 2. Reload configuration: pg_ctl reload
+# or: SELECT pg_reload_conf();

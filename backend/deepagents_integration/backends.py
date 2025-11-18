@@ -8,15 +8,32 @@ Manages creation and configuration of different storage backends:
 - CompositeBackend: Hybrid storage with routing rules
 """
 
+import sys
+from pathlib import Path
 from typing import Any, Dict, Optional
 
-from deepagents.backends import (
-    BackendProtocol,
-    CompositeBackend,
-    FilesystemBackend,
-    StateBackend,
-)
-from deepagents.backends.store import StoreBackend
+# Add mock deepagents to path for development/testing
+mock_path = Path(__file__).parent.parent / "deepagents_mock"
+if mock_path.exists() and str(mock_path) not in sys.path:
+    sys.path.insert(0, str(mock_path.parent))
+
+try:
+    from deepagents.backends import (
+        BackendProtocol,
+        CompositeBackend,
+        FilesystemBackend,
+        StateBackend,
+    )
+    from deepagents.backends.store import StoreBackend
+except ImportError:
+    # Fallback to mock if deepagents not installed
+    from deepagents_mock.backends import (
+        BackendProtocol,
+        CompositeBackend,
+        FilesystemBackend,
+        StateBackend,
+    )
+    from deepagents_mock.backends.store import StoreBackend
 
 
 class BackendManager:

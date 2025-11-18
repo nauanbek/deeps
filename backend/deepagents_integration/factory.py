@@ -7,11 +7,25 @@ selection, feature configuration, and tool/subagent setup.
 """
 
 import os
+import sys
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from deepagents import create_deep_agent
-from deepagents.backends import BackendProtocol
-from deepagents.middleware.subagents import SubAgent
+# Add mock deepagents to path for development/testing
+mock_path = Path(__file__).parent.parent / "deepagents_mock"
+if mock_path.exists() and str(mock_path) not in sys.path:
+    sys.path.insert(0, str(mock_path.parent))
+
+try:
+    from deepagents import create_deep_agent
+    from deepagents.backends import BackendProtocol
+    from deepagents.middleware.subagents import SubAgent
+except ImportError:
+    # Fallback to mock if deepagents not installed
+    from deepagents_mock import create_deep_agent
+    from deepagents_mock.backends import BackendProtocol
+    from deepagents_mock.middleware.subagents import SubAgent
+
 from langchain.tools import BaseTool
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI

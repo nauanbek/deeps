@@ -23,6 +23,9 @@ from schemas.auth import (
     UserResponse,
 )
 from services.auth_service import AuthService
+from services.lockout_service import get_lockout_service
+from core.password_validator import calculate_password_strength
+from pydantic import BaseModel
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -156,3 +159,108 @@ async def logout(
         Success message
     """
     return {"message": "Successfully logged out"}
+
+
+@router.get("/lockout-status/{username}", status_code=status.HTTP_200_OK)
+async def get_lockout_status(
+    username: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get account lockout status for a user.
+
+    Returns detailed information about failed login attempts and lockout state.
+    Requires authentication.
+
+    Args:
+        username: Username to check lockout status for
+        current_user: Current authenticated user (admin access recommended)
+
+    Returns:
+        Dictionary with:
+            - locked (bool): Whether account is currently locked
+            - failed_attempts (int): Number of failed attempts in current window
+            - remaining_attempts (int): Attempts until lockout
+            - unlocks_in_seconds (int): Seconds until automatic unlock (0 if not locked)
+            - max_attempts (int): Maximum allowed failed attempts
+    """
+    lockout_service = get_lockout_service()
+    status_info = await lockout_service.get_lockout_status(username)
+    return status_info
+
+
+@router.post("/unlock-account/{username}", status_code=status.HTTP_200_OK)
+async def unlock_account(
+    username: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Manually unlock a locked account (admin function).
+
+    Clears both the lockout flag and failed attempts counter.
+    Requires authentication. In production, this should be restricted to admin users.
+
+    Args:
+        username: Username to unlock
+        current_user: Current authenticated user (should be admin)
+
+    Returns:
+        Success message indicating if account was unlocked
+
+    Example:
+        POST /api/v1/auth/unlock-account/johndoe
+        Response: {"message": "Account 'johndoe' has been unlocked", "was_locked": true}
+    """
+    lockout_service = get_lockout_service()
+    was_locked = await lockout_service.unlock_account(username)
+
+    if was_locked:
+        return {
+            "message": f"Account '{username}' has been unlocked",
+            "was_locked": True
+        }
+    else:
+        return {
+            "message": f"Account '{username}' was not locked",
+            "was_locked": False
+        }
+
+
+# ============================================================================
+# Password Strength Check
+# ============================================================================
+
+
+class PasswordStrengthRequest(BaseModel):
+    """Request model for password strength check."""
+    password: str
+
+
+@router.post("/check-password-strength", status_code=status.HTTP_200_OK)
+async def check_password_strength(request: PasswordStrengthRequest):
+    """
+    Check password strength and get improvement suggestions.
+
+    This endpoint does NOT require authentication and can be called
+    during registration or password change to provide real-time feedback.
+
+    Args:
+        request: Password strength check request
+
+    Returns:
+        Dictionary with:
+            - strength (str): Strength level (very_weak, weak, medium, strong, very_strong)
+            - score (int): Numeric strength score (0-120+)
+            - suggestions (list): List of improvement suggestions
+
+    Example:
+        POST /api/v1/auth/check-password-strength
+        Body: {"password": "MyP@ssw0rd!"}
+        Response: {
+            "strength": "strong",
+            "score": 75,
+            "suggestions": ["Use at least 12 characters for better security"]
+        }
+    """
+    result = calculate_password_strength(request.password)
+    return result
