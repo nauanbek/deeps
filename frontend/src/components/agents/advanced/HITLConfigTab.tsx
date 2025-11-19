@@ -54,8 +54,13 @@ export const HITLConfigTab: React.FC<HITLConfigTabProps> = ({
       setNewToolName('');
       setSelectedDecisions(['approve', 'reject']);
       onSuccess?.();
-    } catch (err: any) {
-      onError?.(err.response?.data?.detail || 'Failed to create interrupt config');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to create interrupt config';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      onError?.(errorMessage);
     }
   };
 
@@ -64,8 +69,13 @@ export const HITLConfigTab: React.FC<HITLConfigTabProps> = ({
       try {
         await deleteMutation.mutateAsync({ agentId, toolName });
         onSuccess?.();
-      } catch (err: any) {
-        onError?.(err.response?.data?.detail || 'Failed to delete interrupt config');
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to delete interrupt config';
+        if (err && typeof err === 'object' && 'response' in err) {
+          const axiosError = err as { response?: { data?: { detail?: string } } };
+          errorMessage = axiosError.response?.data?.detail || errorMessage;
+        }
+        onError?.(errorMessage);
       }
     }
   };

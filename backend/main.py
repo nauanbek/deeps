@@ -73,6 +73,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add rate limiting middleware (Problem #15)
+from core.rate_limit import RateLimitMiddleware
+
+app.add_middleware(
+    RateLimitMiddleware,
+    redis_url=str(settings.REDIS_URL),
+    default_limit=60,  # 60 requests per minute
+    default_window=60,  # 1 minute window
+)
+
 # Add metrics collection middleware
 from core.middleware import MetricsMiddleware
 

@@ -14,13 +14,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.database import engine
+from core.dependencies import get_current_active_user
+from models.user import User
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
@@ -147,9 +149,13 @@ async def liveness_check() -> dict[str, str]:
 
 
 @router.get("/deep")
-async def deep_health_check() -> dict[str, Any]:
+async def deep_health_check(
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
     """
     Comprehensive health check for all dependencies.
+
+    **Requires authentication** - exposes sensitive operational data.
 
     Checks:
     - Database connectivity and query execution
@@ -161,11 +167,15 @@ async def deep_health_check() -> dict[str, Any]:
     This endpoint may be slow (5-10 seconds) as it thoroughly tests all systems.
     Do NOT use this for load balancer health checks.
 
+    Args:
+        current_user: Current authenticated user
+
     Returns:
         Detailed health status of all components
 
     Raises:
-        HTTPException: If any critical component is unhealthy
+        HTTPException: 401 if not authenticated
+        HTTPException: 503 if any critical component is unhealthy
     """
     health_status = {
         "status": "healthy",

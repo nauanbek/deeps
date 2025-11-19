@@ -140,11 +140,50 @@ class BackendManager:
 
         Security Notes:
             - virtual_mode=False provides real filesystem access
-            - root_dir should be carefully sandboxed to prevent path traversal
-            - Consider using chroot-like isolation for production
+            - root_dir is validated to prevent path traversal attacks
+            - Paths are normalized and checked against allowed base directories
+
+        Raises:
+            ValueError: If root_dir contains path traversal attempts or is outside allowed directories
         """
         root_dir = config.get("root_dir", ".")
         virtual_mode = config.get("virtual_mode", True)
+
+        # Path traversal protection (Problem #17)
+        if not virtual_mode:
+            # Real filesystem mode requires strict path validation
+            root_path = Path(root_dir).resolve()
+
+            # Check for path traversal attempts in original string
+            if ".." in root_dir:
+                raise ValueError(
+                    f"Path traversal detected in root_dir: '{root_dir}'. "
+                    "Parent directory references (..) are not allowed for security."
+                )
+
+            # Define allowed base directories for real filesystem access
+            # Only allow paths under /tmp, /var/deepagents, or current working directory
+            allowed_bases = [
+                Path("/tmp").resolve(),
+                Path("/var/deepagents").resolve(),
+                Path.cwd().resolve(),
+            ]
+
+            # Check if resolved path is under one of the allowed bases
+            is_allowed = any(
+                str(root_path).startswith(str(base)) for base in allowed_bases
+            )
+
+            if not is_allowed:
+                raise ValueError(
+                    f"Filesystem root_dir '{root_dir}' (resolves to '{root_path}') "
+                    f"is outside allowed directories: {[str(b) for b in allowed_bases]}. "
+                    "For security, real filesystem access is restricted to /tmp, "
+                    "/var/deepagents, or current working directory."
+                )
+
+            # Use the resolved (normalized) path
+            root_dir = str(root_path)
 
         return FilesystemBackend(
             root_dir=root_dir,

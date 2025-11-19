@@ -10,7 +10,7 @@ This module provides:
 
 from typing import Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from loguru import logger
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
@@ -20,6 +20,9 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
+
+from core.dependencies import get_current_active_user
+from models.user import User
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
@@ -163,15 +166,25 @@ errors_total = Counter(
 
 
 @router.get("", include_in_schema=False)
-async def metrics() -> Response:
+async def metrics(
+    current_user: User = Depends(get_current_active_user),
+) -> Response:
     """
     Prometheus metrics endpoint.
+
+    **Requires authentication** - exposes operational metrics.
 
     Returns metrics in Prometheus text format for scraping.
     This endpoint should be called by Prometheus at regular intervals.
 
+    Args:
+        current_user: Current authenticated user
+
     Returns:
         Response with Prometheus metrics in text format
+
+    Raises:
+        HTTPException: 401 if not authenticated
     """
     try:
         # Generate metrics in Prometheus format

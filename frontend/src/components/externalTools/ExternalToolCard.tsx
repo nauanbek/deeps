@@ -103,8 +103,12 @@ export const ExternalToolCard: React.FC<ExternalToolCardProps> = ({ tool, onEdit
       } else {
         showError(`Connection test failed: ${result.message}`);
       }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Connection test failed';
+    } catch (error: unknown) {
+      let errorMessage = 'Connection test failed';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     } finally {
       setIsTesting(false);

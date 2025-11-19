@@ -43,5 +43,5 @@ export interface ExecutionTrace {
 
 export interface StreamChunk {
   type: 'token' | 'trace' | 'error' | 'complete';
-  data: any;
+  data: unknown;
 }

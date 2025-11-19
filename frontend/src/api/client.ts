@@ -66,26 +66,39 @@ apiClient.interceptors.request.use(
  * - HTTP errors with custom messages from backend
  * - Status code-specific default messages
  *
- * @param {any} error - Axios error object
+ * @param {unknown} error - Axios error object
  * @returns {string} User-friendly error message
  *
  * @private
  */
-const getErrorMessage = (error: any): string => {
+const getErrorMessage = (error: unknown): string => {
+  // Type guard for axios error structure
+  if (!error || typeof error !== 'object') {
+    return 'An unexpected error occurred';
+  }
+
+  const axiosError = error as {
+    code?: string;
+    message?: string;
+    response?: {
+      status?: number;
+      data?: { detail?: string; message?: string };
+    };
+  };
   // Network errors
-  if (!error.response) {
-    if (error.code === 'ECONNABORTED') {
+  if (!axiosError.response) {
+    if (axiosError.code === 'ECONNABORTED') {
       return 'Request timed out. Please check your connection and try again.';
     }
-    if (error.message === 'Network Error') {
+    if (axiosError.message === 'Network Error') {
       return 'Network error. Please check your internet connection.';
     }
     return 'Unable to connect to server. Please try again later.';
   }
 
   // Server errors with custom messages
-  const status = error.response.status;
-  const data = error.response.data;
+  const status = axiosError.response.status;
+  const data = axiosError.response.data;
 
   // Extract error message from various response formats
   const message =

@@ -134,8 +134,13 @@ export const BackendConfigTab: React.FC<BackendConfigTabProps> = ({
         });
         onSuccess?.();
       }
-    } catch (err: any) {
-      onError?.(err.response?.data?.detail || 'Failed to save backend configuration');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to save backend configuration';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      onError?.(errorMessage);
     }
   };
 
@@ -147,8 +152,13 @@ export const BackendConfigTab: React.FC<BackendConfigTabProps> = ({
         await deleteMutation.mutateAsync(agentId);
         reset({ backend_type: 'state', config: {} });
         onSuccess?.();
-      } catch (err: any) {
-        onError?.(err.response?.data?.detail || 'Failed to delete backend configuration');
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to delete backend configuration';
+        if (err && typeof err === 'object' && 'response' in err) {
+          const axiosError = err as { response?: { data?: { detail?: string } } };
+          errorMessage = axiosError.response?.data?.detail || errorMessage;
+        }
+        onError?.(errorMessage);
       }
     }
   };

@@ -121,6 +121,141 @@ class AgentFactory:
             max_tokens=max_tokens,
         )
 
+    def _validate_model_provider(self, provider: str) -> None:
+        """
+        Validate that the model provider is supported.
+
+        Args:
+            provider: Model provider name (e.g., "anthropic", "openai")
+
+        Raises:
+            ValueError: If provider is not supported
+        """
+        if provider not in self.model_providers:
+            raise ValueError(
+                f"Unsupported model provider: {provider}. "
+                f"Supported providers: {', '.join(self.model_providers.keys())}"
+            )
+
+    def _create_llm(self, agent_config: AgentModel) -> Any:
+        """
+        Create LLM instance based on agent configuration.
+
+        Args:
+            agent_config: Agent model with LLM configuration
+
+        Returns:
+            LLM instance (ChatAnthropic, ChatOpenAI, etc.)
+
+        Raises:
+            ValueError: If model provider is invalid or API key missing
+        """
+        self._validate_model_provider(agent_config.model_provider)
+
+        llm_creator = self.model_providers[agent_config.model_provider]
+        return llm_creator(
+            agent_config.model_name,
+            agent_config.temperature,
+            agent_config.max_tokens or 4096,  # Default to 4096 if not specified
+        )
+
+    def _prepare_tools_and_subagents(
+        self,
+        tools: Optional[list[BaseTool]],
+        subagents: Optional[list[SubAgent]]
+    ) -> tuple[list[BaseTool], list[SubAgent]]:
+        """
+        Prepare tools and subagents lists, ensuring they're not None.
+
+        Args:
+            tools: Optional list of tools
+            subagents: Optional list of subagents
+
+        Returns:
+            Tuple of (tools_list, subagents_list) with empty lists as defaults
+        """
+        return tools or [], subagents or []
+
+    async def _load_backend_config(
+        self,
+        agent_config: AgentModel,
+        db_session: Optional[AsyncSession],
+        runtime: Optional[Any]
+    ) -> Optional[BackendProtocol]:
+        """
+        Load and create backend from agent configuration.
+
+        Args:
+            agent_config: Agent model with potential backend config
+            db_session: Database session for loading configs
+            runtime: Runtime instance for backend creation
+
+        Returns:
+            BackendProtocol instance or None if not configured
+        """
+        if not db_session or not hasattr(agent_config, "backend_config"):
+            return None
+
+        if not agent_config.backend_config:
+            return None
+
+        backend_config = agent_config.backend_config
+
+        # Get or create store if needed for StoreBackend
+        store = None
+        if hasattr(agent_config, "memory_namespace") and agent_config.memory_namespace:
+            namespace = agent_config.memory_namespace.namespace
+            store = await store_manager.get_store(
+                namespace=namespace,
+                store_type=agent_config.memory_namespace.store_type,
+                db_session=db_session
+            )
+
+        # Create backend from configuration
+        return backend_manager.create_backend(
+            config={
+                "type": backend_config.backend_type,
+                **backend_config.config
+            },
+            runtime=runtime,
+            store=store
+        )
+
+    def _load_interrupt_config(
+        self,
+        agent_config: AgentModel,
+        db_session: Optional[AsyncSession]
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Any]]:
+        """
+        Load HITL interrupt configuration and create checkpointer.
+
+        Args:
+            agent_config: Agent model with potential interrupt configs
+            db_session: Database session for loading configs
+
+        Returns:
+            Tuple of (interrupt_on dict, checkpointer) or (None, None)
+        """
+        if not db_session or not hasattr(agent_config, "interrupt_configs"):
+            return None, None
+
+        if not agent_config.interrupt_configs:
+            return None, None
+
+        # Build interrupt_on dictionary from configs
+        interrupt_on = {}
+        for interrupt_config in agent_config.interrupt_configs:
+            interrupt_on[interrupt_config.tool_name] = {
+                "allowed_decisions": interrupt_config.allowed_decisions,
+                **interrupt_config.config
+            }
+
+        # Create checkpointer for HITL support
+        # Note: Using MemorySaver for now, can be replaced with PostgresSaver
+        checkpointer = MemorySaver()
+
+        return interrupt_on, checkpointer
+
     async def create_agent(
         self,
         agent_config: AgentModel,
@@ -167,69 +302,17 @@ class AgentFactory:
                 runtime=runtime
             )
         """
-        # Validate model provider
-        if agent_config.model_provider not in self.model_providers:
-            raise ValueError(
-                f"Unsupported model provider: {agent_config.model_provider}"
-            )
+        # Step 1: Create LLM instance
+        llm = self._create_llm(agent_config)
 
-        # Create LLM based on provider
-        llm_creator = self.model_providers[agent_config.model_provider]
-        llm = llm_creator(
-            agent_config.model_name,
-            agent_config.temperature,
-            agent_config.max_tokens or 4096,  # Default to 4096 if not specified
-        )
+        # Step 2: Prepare tools and subagents
+        agent_tools, agent_subagents = self._prepare_tools_and_subagents(tools, subagents)
 
-        # Prepare tools and subagents (default to empty lists if None)
-        agent_tools = tools or []
-        agent_subagents = subagents or []
+        # Step 3: Load advanced configurations (backend, HITL)
+        backend = await self._load_backend_config(agent_config, db_session, runtime)
+        interrupt_on, checkpointer = self._load_interrupt_config(agent_config, db_session)
 
-        # Load advanced configurations if db_session provided
-        backend: Optional[BackendProtocol] = None
-        interrupt_on: Optional[Dict[str, Any]] = None
-        checkpointer: Optional[Any] = None
-
-        if db_session and hasattr(agent_config, "backend_config"):
-            # Load backend configuration
-            if agent_config.backend_config:
-                backend_config = agent_config.backend_config
-
-                # Get or create store if needed
-                store = None
-                if hasattr(agent_config, "memory_namespace") and agent_config.memory_namespace:
-                    namespace = agent_config.memory_namespace.namespace
-                    store = await store_manager.get_store(
-                        namespace=namespace,
-                        store_type=agent_config.memory_namespace.store_type,
-                        db_session=db_session
-                    )
-
-                # Create backend from config
-                backend = backend_manager.create_backend(
-                    config={
-                        "type": backend_config.backend_type,
-                        **backend_config.config
-                    },
-                    runtime=runtime,
-                    store=store
-                )
-
-        if db_session and hasattr(agent_config, "interrupt_configs"):
-            # Load HITL interrupt configuration
-            if agent_config.interrupt_configs:
-                interrupt_on = {}
-                for interrupt_config in agent_config.interrupt_configs:
-                    interrupt_on[interrupt_config.tool_name] = {
-                        "allowed_decisions": interrupt_config.allowed_decisions,
-                        **interrupt_config.config
-                    }
-
-                # Create checkpointer for HITL support
-                # Note: Using MemorySaver for now, can be replaced with PostgresSaver
-                checkpointer = MemorySaver()
-
-        # Create DeepAgent using create_deep_agent
+        # Step 4: Create DeepAgent using create_deep_agent
         # Note: By default, create_deep_agent includes:
         #   - write_todos tool (planning) - ALWAYS enabled
         #   - 6 file editing tools (filesystem) - ALWAYS enabled

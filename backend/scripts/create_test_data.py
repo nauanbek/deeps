@@ -115,7 +115,8 @@ class DataCreator:
                     try:
                         error_detail = response.json()
                         print(f"✗ Failed to create agent {name}: {response.status_code} - {error_detail}")
-                    except:
+                    except (ValueError, KeyError):
+                        # Response body is not valid JSON
                         print(f"✗ Failed to create agent {name}: {response.status_code} - {response.text}")
                     return None
             except Exception as e:

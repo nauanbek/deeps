@@ -3,6 +3,11 @@ import { format } from 'date-fns';
 import type { ExecutionTrace, TraceEventType } from '../../types/execution';
 import { TRACE_EVENT_COLORS } from '../../utils/constants';
 
+interface TodoItem {
+  description: string;
+  status?: string;
+}
+
 interface TraceItemProps {
   trace: ExecutionTrace;
   index: number;
@@ -29,7 +34,7 @@ const formatTimestamp = (timestamp: string): string => {
   }
 };
 
-const formatJSON = (data: any): string => {
+const formatJSON = (data: unknown): string => {
   try {
     return JSON.stringify(data, null, 2);
   } catch {
@@ -178,7 +183,7 @@ export const TraceItem: React.FC<TraceItemProps> = ({ trace, index }) => {
             </div>
             {content.todos && Array.isArray(content.todos) && content.todos.length > 0 && (
               <div className="mt-2 space-y-1">
-                {content.todos.map((todo: any, idx: number) => (
+                {(content.todos as TodoItem[]).map((todo, idx: number) => (
                   <div key={idx} className="text-xs text-gray-700 flex items-start gap-2">
                     <span className="font-medium text-gray-500">{idx + 1}.</span>
                     <div className="flex-1">

@@ -25,6 +25,57 @@ from services.tool_service import tool_service
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 
+# ============================================================================
+# Helper Functions - Authorization
+# ============================================================================
+
+
+async def get_tool_or_403(
+    tool_id: int,
+    user_id: int,
+    db: AsyncSession,
+) -> "Tool":
+    """
+    Get tool and verify ownership, raise 403 if not owner.
+
+    Only applies to custom tools - builtin tools are system-owned.
+
+    Args:
+        tool_id: Tool ID to fetch
+        user_id: Current user ID (from JWT token)
+        db: Database session
+
+    Returns:
+        Tool: The tool if user is the owner or tool is builtin
+
+    Raises:
+        404: Tool not found
+        403: User doesn't own this custom tool (access denied)
+    """
+    from models.tool import Tool
+    from sqlalchemy import select
+
+    stmt = select(Tool).where(Tool.id == tool_id)
+    result = await db.execute(stmt)
+    tool = result.scalar_one_or_none()
+
+    if not tool:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tool with id {tool_id} not found",
+        )
+
+    # Builtin tools are system-owned, allow all users to read
+    # Custom tools must be owned by current user to modify
+    if tool.tool_type != "builtin" and tool.created_by_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify this tool",
+        )
+
+    return tool
+
+
 @router.post("/", response_model=ToolResponse, status_code=status.HTTP_201_CREATED)
 async def create_tool(
     tool_data: ToolCreate,
@@ -195,21 +246,31 @@ async def update_tool(
     """
     Update tool.
 
+    Can only update custom tools owned by current user.
+    Builtin tools cannot be modified.
+
     Args:
         tool_id: Tool ID to update
         tool_update: Update data
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Updated tool
 
     Raises:
+        HTTPException 403: User doesn't own this tool
         HTTPException 404: Tool not found
         HTTPException 500: Internal server error
     """
     try:
+        # Verify ownership before updating
+        await get_tool_or_403(tool_id, current_user.id, db)
+
         tool = await tool_service.update_tool(db, tool_id, tool_update)
         return ToolResponse.model_validate(tool)
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.warning(f"Tool update failed: {e}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -231,15 +292,23 @@ async def delete_tool(
     """
     Delete tool (soft delete by default).
 
+    Can only delete custom tools owned by current user.
+    Builtin tools cannot be deleted.
+
     Args:
         tool_id: Tool ID to delete
         hard_delete: If True, permanently delete; if False, soft delete
+        current_user: Current authenticated user
         db: Database session
 
     Raises:
+        HTTPException 403: User doesn't own this tool
         HTTPException 404: Tool not found
     """
     try:
+        # Verify ownership before deleting
+        await get_tool_or_403(tool_id, current_user.id, db)
+
         success = await tool_service.delete_tool(db, tool_id, hard_delete)
         if not success:
             raise HTTPException(

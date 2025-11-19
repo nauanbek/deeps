@@ -10,6 +10,12 @@ from typing import Any
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core.constants import (
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
+    JWT_ALGORITHM,
+    SECRET_KEY_MIN_LENGTH,
+)
+
 
 class Settings(BaseSettings):
     """
@@ -38,15 +44,14 @@ class Settings(BaseSettings):
 
     # Security Configuration
     SECRET_KEY: str = Field(
-        default="dev-secret-key-change-in-production-use-strong-random-key",
-        description="Secret key for JWT token signing (MUST be changed in production)",
+        description="Secret key for JWT token signing (required, min 32 chars)",
     )
     ALGORITHM: str = Field(
-        default="HS256",
+        default=JWT_ALGORITHM,
         description="Algorithm for JWT token encoding",
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30,
+        default=JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
         description="JWT token expiration time in minutes",
     )
 
@@ -54,6 +59,12 @@ class Settings(BaseSettings):
     CORS_ORIGINS_STR: str = Field(
         default="http://localhost:3000,http://testserver",
         description="Allowed CORS origins (comma-separated)",
+    )
+
+    # Credential Encryption Key for External Tools
+    CREDENTIAL_ENCRYPTION_KEY: str | None = Field(
+        default=None,
+        description="Fernet encryption key for external tool credentials",
     )
 
     # External API Keys (Optional)
@@ -71,6 +82,85 @@ class Settings(BaseSettings):
         default="development",
         description="Environment name (development, testing, production)",
     )
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        """
+        Validate SECRET_KEY is secure and meets requirements.
+
+        Args:
+            v: The SECRET_KEY value
+
+        Returns:
+            str: The validated SECRET_KEY
+
+        Raises:
+            ValueError: If SECRET_KEY is insecure or too short
+        """
+        if not v:
+            raise ValueError("SECRET_KEY must be set")
+        if len(v) < SECRET_KEY_MIN_LENGTH:
+            raise ValueError(
+                f"SECRET_KEY must be at least {SECRET_KEY_MIN_LENGTH} characters. "
+                "Generate with: openssl rand -hex 32"
+            )
+        # Check for common insecure values
+        insecure_keys = [
+            "dev-secret-key",
+            "change-me",
+            "secret",
+            "password",
+            "test",
+            "example",
+        ]
+        if any(bad in v.lower() for bad in insecure_keys):
+            raise ValueError(
+                "SECRET_KEY contains insecure value. "
+                "Generate secure key with: openssl rand -hex 32"
+            )
+        return v
+
+    @field_validator("CORS_ORIGINS_STR")
+    @classmethod
+    def validate_cors_origins(cls, v: str, values: Any) -> str:
+        """
+        Validate CORS origins configuration for security.
+
+        When using credentials (cookies, auth headers), wildcard "*" is not allowed
+        as it creates security vulnerabilities (CSRF, credential theft).
+
+        Args:
+            v: CORS origins string
+            values: Other field values
+
+        Returns:
+            str: The validated CORS origins string
+
+        Raises:
+            ValueError: If CORS configuration is insecure
+        """
+        if not v:
+            raise ValueError("CORS_ORIGINS_STR must be set")
+
+        origins = [origin.strip() for origin in v.split(",") if origin.strip()]
+
+        # Check for wildcard with credentials (insecure)
+        if "*" in origins:
+            raise ValueError(
+                "CORS wildcard '*' is not allowed when using credentials. "
+                "Specify exact origins (e.g., 'https://app.example.com,https://dashboard.example.com')"
+            )
+
+        # Validate origin format (basic check)
+        for origin in origins:
+            if not origin.startswith(("http://", "https://")) and origin != "testserver":
+                raise ValueError(
+                    f"Invalid CORS origin '{origin}'. "
+                    "Must start with http:// or https:// (or be 'testserver' for tests)"
+                )
+
+        return v
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -50,8 +50,12 @@ export const ToolMarketplace: React.FC = () => {
       await deleteTool.mutateAsync({ id: deletingTool.id, hardDelete: false });
       showSuccess(`Tool "${deletingTool.name}" deleted successfully`);
       setDeletingTool(null);
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to delete tool';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to delete tool';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     }
   };

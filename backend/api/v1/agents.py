@@ -39,6 +39,54 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 # ============================================================================
+# Helper Functions - Authorization
+# ============================================================================
+
+
+async def get_agent_or_403(
+    agent_id: int,
+    user_id: int,
+    db: AsyncSession,
+) -> "Agent":
+    """
+    Get agent and verify ownership, raise 403 if not owner.
+
+    This function ensures multi-tenancy isolation by verifying that
+    the requesting user owns the agent before returning it.
+
+    Args:
+        agent_id: Agent ID to fetch
+        user_id: Current user ID (from JWT token)
+        db: Database session
+
+    Returns:
+        Agent: The agent if user is the owner
+
+    Raises:
+        404: Agent not found
+        403: User doesn't own this agent (access denied)
+    """
+    from models.agent import Agent
+
+    agent = await agent_service.get_agent(db=db, agent_id=agent_id)
+
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent with id {agent_id} not found",
+        )
+
+    # Critical security check: Verify ownership
+    if agent.created_by_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this agent",
+        )
+
+    return agent
+
+
+# ============================================================================
 # POST /agents/ - Create Agent
 # ============================================================================
 
@@ -162,18 +210,13 @@ async def get_agent(
 
     Raises:
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent not found
         500: Internal server error
     """
     try:
-        agent = await agent_service.get_agent(db=db, agent_id=agent_id)
-
-        if not agent:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Agent with id {agent_id} not found",
-            )
-
+        # Verify ownership before returning agent
+        agent = await get_agent_or_403(agent_id, current_user.id, db)
         return agent
     except HTTPException:
         raise
@@ -211,17 +254,23 @@ async def update_agent(
     Raises:
         400: Validation error
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent not found
         409: Conflict (duplicate name)
         500: Internal server error
     """
     try:
+        # Verify ownership before updating
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         agent = await agent_service.update_agent(
             db=db,
             agent_id=agent_id,
             agent_update=agent_update,
         )
         return agent
+    except HTTPException:
+        raise
     except AgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -273,16 +322,22 @@ async def delete_agent(
 
     Raises:
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent not found
         500: Internal server error
     """
     try:
+        # Verify ownership before deleting
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         await agent_service.delete_agent(
             db=db,
             agent_id=agent_id,
             hard_delete=hard_delete,
         )
         return None
+    except HTTPException:
+        raise
     except AgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -322,10 +377,14 @@ async def add_tools_to_agent(
     Raises:
         400: Invalid request data
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent or tool not found
         500: Internal server error
     """
     try:
+        # Verify ownership before modifying tools
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         # Extract tool_ids from request
         tool_ids = tool_data.get("tool_ids", [])
 
@@ -341,6 +400,8 @@ async def add_tools_to_agent(
             tool_ids=tool_ids,
         )
         return agent
+    except HTTPException:
+        raise
     except AgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -351,8 +412,6 @@ async def add_tools_to_agent(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -391,17 +450,23 @@ async def add_subagent_to_agent(
     Raises:
         400: Validation error (self-reference, circular dependency)
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent or subagent not found
         409: Conflict (duplicate relationship)
         500: Internal server error
     """
     try:
+        # Verify ownership before adding subagent
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         subagent = await subagent_service.add_subagent_to_agent(
             db=db,
             agent_id=agent_id,
             subagent_data=subagent_data,
         )
         return subagent
+    except HTTPException:
+        raise
     except SubagentAgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -459,15 +524,21 @@ async def list_agent_subagents(
 
     Raises:
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent not found
         500: Internal server error
     """
     try:
+        # Verify ownership before listing subagents
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         subagents = await subagent_service.list_agent_subagents(
             db=db,
             agent_id=agent_id,
         )
         return subagents
+    except HTTPException:
+        raise
     except SubagentAgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -506,16 +577,22 @@ async def remove_subagent_from_agent(
 
     Raises:
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent or subagent relationship not found
         500: Internal server error
     """
     try:
+        # Verify ownership before removing subagent
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         await subagent_service.remove_subagent_from_agent(
             db=db,
             agent_id=agent_id,
             subagent_id=subagent_id,
         )
         return None
+    except HTTPException:
+        raise
     except SubagentAgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -561,10 +638,14 @@ async def update_subagent_config(
 
     Raises:
         401: Unauthorized (no valid JWT token)
+        403: Forbidden (not agent owner)
         404: Agent or subagent relationship not found
         500: Internal server error
     """
     try:
+        # Verify ownership before updating subagent
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         subagent = await subagent_service.update_subagent_config(
             db=db,
             agent_id=agent_id,
@@ -572,6 +653,8 @@ async def update_subagent_config(
             update_data=update_data,
         )
         return subagent
+    except HTTPException:
+        raise
     except SubagentAgentNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -625,11 +708,15 @@ async def update_agent_tools(
 
     Raises:
         HTTPException 401: Unauthorized
+        HTTPException 403: Forbidden (not agent owner)
         HTTPException 404: Agent not found
         HTTPException 422: Invalid tool IDs
         HTTPException 500: Internal server error
     """
     try:
+        # Verify ownership before updating tools
+        await get_agent_or_403(agent_id, current_user.id, db)
+
         # Validate that all tools belong to current user
         from models.external_tool import ExternalToolConfig
         from sqlalchemy import select, and_

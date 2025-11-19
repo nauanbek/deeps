@@ -144,43 +144,71 @@ class MonitoringService:
         result = await db.execute(agents_query)
         agents = result.scalars().all()
 
+        if not agents:
+            return []
+
+        # Get all agent IDs
+        agent_ids = [agent.id for agent in agents]
+
+        # Pre-fetch execution statistics for all agents in a single query (fixes N+1 query issue)
+        # This query aggregates: total count, success count, error count, and last execution time
+        stats_query = (
+            select(
+                Execution.agent_id,
+                func.count(Execution.id).label('total'),
+                func.sum(
+                    func.case((Execution.status == "completed", 1), else_=0)
+                ).label('success'),
+                func.sum(
+                    func.case((Execution.status == "failed", 1), else_=0)
+                ).label('errors'),
+                func.max(Execution.started_at).label('last_execution')
+            )
+            .where(Execution.agent_id.in_(agent_ids))
+            .group_by(Execution.agent_id)
+        )
+        stats_result = await db.execute(stats_query)
+        stats_by_agent = {
+            row.agent_id: {
+                'total': row.total or 0,
+                'success': row.success or 0,
+                'errors': row.errors or 0,
+                'last_execution': row.last_execution
+            }
+            for row in stats_result
+        }
+
+        # Pre-fetch average execution times for all agents in a single query
+        avg_time_query = (
+            select(
+                Execution.agent_id,
+                func.avg(
+                    func.extract('epoch', Execution.completed_at - Execution.started_at)
+                ).label('avg_duration')
+            )
+            .where(
+                and_(
+                    Execution.agent_id.in_(agent_ids),
+                    Execution.status == "completed",
+                    Execution.completed_at.isnot(None),
+                    Execution.started_at.isnot(None)
+                )
+            )
+            .group_by(Execution.agent_id)
+        )
+        avg_time_result = await db.execute(avg_time_query)
+        avg_times = {row.agent_id: float(row.avg_duration or 0.0) for row in avg_time_result}
+
+        # Build health data from pre-fetched statistics
         health_data = []
         for agent in agents:
-            # Count executions
-            total_query = select(func.count(Execution.id)).where(
-                Execution.agent_id == agent.id
-            )
-            total = await db.scalar(total_query) or 0
+            stats = stats_by_agent.get(agent.id, {'total': 0, 'success': 0, 'errors': 0, 'last_execution': None})
+            avg_time = avg_times.get(agent.id, 0.0)
 
-            # Count successful executions
-            success_query = select(func.count(Execution.id)).where(
-                and_(
-                    Execution.agent_id == agent.id,
-                    Execution.status == "completed"
-                )
-            )
-            success = await db.scalar(success_query) or 0
-
-            # Count errors
-            error_query = select(func.count(Execution.id)).where(
-                and_(
-                    Execution.agent_id == agent.id,
-                    Execution.status == "failed"
-                )
-            )
-            errors = await db.scalar(error_query) or 0
-
-            # Calculate average execution time
-            avg_time = await self._calculate_avg_execution_time(db, agent.id)
-
-            # Get last execution time
-            last_exec_query = (
-                select(Execution.started_at)
-                .where(Execution.agent_id == agent.id)
-                .order_by(desc(Execution.started_at))
-                .limit(1)
-            )
-            last_exec = await db.scalar(last_exec_query)
+            total = stats['total']
+            success = stats['success']
+            errors = stats['errors']
+            last_exec = stats['last_execution']
 
             health_data.append({
                 "agent_id": agent.id,

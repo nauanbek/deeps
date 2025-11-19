@@ -51,26 +51,36 @@ export const AgentStudio: React.FC = () => {
   }, [agents, searchQuery]);
 
   // Handlers
-  const handleCreateAgent = async (data: any) => {
+  const handleCreateAgent = async (data: AgentCreate) => {
     try {
-      await createMutation.mutateAsync(data as AgentCreate);
+      await createMutation.mutateAsync(data);
       success('Agent created successfully');
       setIsCreateModalOpen(false);
-    } catch (err: any) {
-      error(err.response?.data?.detail || 'Failed to create agent');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to create agent';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      error(errorMessage);
       throw err; // Re-throw to prevent modal from closing
     }
   };
 
-  const handleUpdateAgent = async (data: any) => {
+  const handleUpdateAgent = async (data: AgentUpdate) => {
     if (!editingAgent) return;
 
     try {
-      await updateMutation.mutateAsync({ id: editingAgent.id, data: data as AgentUpdate });
+      await updateMutation.mutateAsync({ id: editingAgent.id, data });
       success('Agent updated successfully');
       setEditingAgent(null);
-    } catch (err: any) {
-      error(err.response?.data?.detail || 'Failed to update agent');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to update agent';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      error(errorMessage);
       throw err; // Re-throw to prevent modal from closing
     }
   };
@@ -82,8 +92,13 @@ export const AgentStudio: React.FC = () => {
       await deleteMutation.mutateAsync(deletingAgent.id);
       success('Agent deleted successfully');
       setDeletingAgent(null);
-    } catch (err: any) {
-      error(err.response?.data?.detail || 'Failed to delete agent');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to delete agent';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      error(errorMessage);
     }
   };
 

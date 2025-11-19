@@ -71,9 +71,12 @@ export const ToolFormModal: React.FC<ToolFormModalProps> = ({ isOpen, tool, onCl
       }
       reset();
       onClose();
-    } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.detail || `Failed to ${isEdit ? 'update' : 'create'} tool`;
+    } catch (error: unknown) {
+      let errorMessage = `Failed to ${isEdit ? 'update' : 'create'} tool`;
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     }
   };

@@ -70,18 +70,23 @@ const Register: React.FC = () => {
     try {
       await register(formData.username, formData.email, formData.password);
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
 
       // Handle validation errors (422)
       let message = 'Registration failed. Please try again.';
-      if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: unknown } } };
+        const detail = axiosError.response?.data?.detail;
 
         // If detail is an array of validation errors
         if (Array.isArray(detail)) {
           message = detail
-            .map((err: any) => err.msg || JSON.stringify(err))
+            .map((err: { msg?: string } | unknown) =>
+              typeof err === 'object' && err !== null && 'msg' in err
+                ? err.msg
+                : JSON.stringify(err)
+            )
             .join(', ');
         }
         // If detail is a string
@@ -89,8 +94,9 @@ const Register: React.FC = () => {
           message = detail;
         }
         // If detail is an object
-        else if (typeof detail === 'object') {
-          message = detail.msg || JSON.stringify(detail);
+        else if (typeof detail === 'object' && detail !== null) {
+          const detailObj = detail as { msg?: string };
+          message = detailObj.msg || JSON.stringify(detail);
         }
       }
 
@@ -224,7 +230,7 @@ const Register: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center min-h-[48px] py-2.5 px-4 border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex justify-center min-h-[48px] py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
                   <div className="flex items-center">
@@ -241,7 +247,7 @@ const Register: React.FC = () => {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t-gray-300" />
+                <div className="w-full border-t border-t-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white text-gray-500">Already have an account?</span>
@@ -251,7 +257,7 @@ const Register: React.FC = () => {
             <div className="mt-6">
               <Link
                 to="/login"
-                className="w-full inline-flex justify-center min-h-[48px] items-center py-2.5 px-4 border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 transition-colors"
+                className="w-full inline-flex justify-center min-h-[48px] items-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 transition-colors"
               >
                 Sign in instead
               </Link>

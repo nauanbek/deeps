@@ -278,8 +278,12 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
         showSuccess(`Tool "${data.tool_name}" created successfully`);
       }
       onClose();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to save tool configuration';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to save tool configuration';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     }
   };
@@ -301,8 +305,12 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
       } else {
         showError(`Connection test failed: ${result.message}`);
       }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Connection test failed';
+    } catch (error: unknown) {
+      let errorMessage = 'Connection test failed';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       setTestResult({ success: false, message: errorMessage });
       showError(errorMessage);
     }

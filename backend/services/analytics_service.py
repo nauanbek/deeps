@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, case, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.cache import cache_result
 from models.agent import Agent
 from models.execution import Execution
 
@@ -14,6 +15,7 @@ from models.execution import Execution
 class AnalyticsService:
     """Service for managing advanced analytics operations."""
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_execution_time_series(
         self,
         db: AsyncSession,
@@ -25,6 +27,8 @@ class AnalyticsService:
         """
         Generate time-series data for execution metrics.
 
+        Uses database-level aggregations to avoid loading 100k+ records into memory.
+
         Args:
             db: Database session
             start_date: Start of date range
@@ -35,73 +39,74 @@ class AnalyticsService:
         Returns:
             List of time-series data points with execution metrics
         """
-        # Build base query
-        query = select(Execution).where(
-            and_(
-                Execution.started_at >= start_date,
-                Execution.started_at <= end_date,
-                Execution.started_at.isnot(None),
+        # Map interval to PostgreSQL date_trunc precision
+        trunc_precision = {
+            "hour": "hour",
+            "day": "day",
+            "week": "week",
+            "month": "month",
+        }.get(interval, "day")
+
+        # Build aggregated query (fixes memory issue - aggregates at DB level)
+        # Returns ~100 rows instead of 100,000+ execution objects
+        query = (
+            select(
+                func.date_trunc(trunc_precision, Execution.started_at).label('bucket'),
+                func.count().label('total'),
+                func.sum(
+                    case((Execution.status == "completed", 1), else_=0)
+                ).label('successful'),
+                func.sum(
+                    case((Execution.status == "failed", 1), else_=0)
+                ).label('failed'),
+                func.sum(
+                    case((Execution.status == "cancelled", 1), else_=0)
+                ).label('cancelled'),
+                func.avg(
+                    case(
+                        (
+                            and_(
+                                Execution.status == "completed",
+                                Execution.completed_at.isnot(None),
+                                Execution.started_at.isnot(None)
+                            ),
+                            func.extract('epoch', Execution.completed_at - Execution.started_at)
+                        ),
+                        else_=None
+                    )
+                ).label('avg_duration'),
+                func.sum(Execution.total_tokens).label('total_tokens'),
+                func.sum(Execution.estimated_cost).label('estimated_cost'),
             )
+            .where(
+                and_(
+                    Execution.started_at >= start_date,
+                    Execution.started_at <= end_date,
+                    Execution.started_at.isnot(None),
+                )
+            )
+            .group_by('bucket')
+            .order_by('bucket')
         )
 
         if agent_id:
             query = query.where(Execution.agent_id == agent_id)
 
         result = await db.execute(query)
-        executions = result.scalars().all()
+        rows = result.all()
 
-        if not executions:
-            return []
-
-        # Group executions by time bucket
-        buckets: Dict[datetime, List[Execution]] = {}
-        for execution in executions:
-            bucket_key = self._get_time_bucket(execution.started_at, interval)
-            if bucket_key not in buckets:
-                buckets[bucket_key] = []
-            buckets[bucket_key].append(execution)
-
-        # Build time-series data
+        # Build time-series data from aggregated results
         time_series_data = []
-        for timestamp in sorted(buckets.keys()):
-            bucket_executions = buckets[timestamp]
-
-            # Count by status
-            total = len(bucket_executions)
-            successful = sum(1 for e in bucket_executions if e.status == "completed")
-            failed = sum(1 for e in bucket_executions if e.status == "failed")
-            cancelled = sum(1 for e in bucket_executions if e.status == "cancelled")
-
-            # Calculate average duration (only for completed executions)
-            durations = [
-                (e.completed_at - e.started_at).total_seconds()
-                for e in bucket_executions
-                if e.status == "completed"
-                and e.completed_at
-                and e.started_at
-            ]
-            avg_duration = sum(durations) / len(durations) if durations else 0.0
-
-            # Sum tokens
-            total_tokens = sum(
-                e.total_tokens or 0 for e in bucket_executions
-            )
-
-            # Sum costs
-            total_cost = sum(
-                float(e.estimated_cost or Decimal("0.0"))
-                for e in bucket_executions
-            )
-
+        for row in rows:
             time_series_data.append({
-                "timestamp": timestamp,
-                "total_executions": total,
-                "successful": successful,
-                "failed": failed,
-                "cancelled": cancelled,
-                "avg_duration_seconds": avg_duration,
-                "total_tokens": total_tokens,
-                "estimated_cost": total_cost,
+                "timestamp": row.bucket,
+                "total_executions": row.total or 0,
+                "successful": row.successful or 0,
+                "failed": row.failed or 0,
+                "cancelled": row.cancelled or 0,
+                "avg_duration_seconds": float(row.avg_duration or 0.0),
+                "total_tokens": row.total_tokens or 0,
+                "estimated_cost": float(row.estimated_cost or Decimal("0.0")),
             })
 
         return time_series_data
@@ -131,6 +136,7 @@ class AnalyticsService:
         else:
             return dt
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_agent_usage_rankings(
         self,
         db: AsyncSession,
@@ -174,13 +180,20 @@ class AnalyticsService:
                 agent_data[execution.agent_id] = []
             agent_data[execution.agent_id].append(execution)
 
+        # Pre-fetch all agents in a single query (fixes N+1 query issue)
+        agent_ids = list(agent_data.keys())
+        agents_query = select(Agent).where(Agent.id.in_(agent_ids))
+        agents_result = await db.execute(agents_query)
+        agents = agents_result.scalars().all()
+
+        # Create agent lookup dictionary
+        agents_by_id = {agent.id: agent for agent in agents}
+
         # Build rankings
         rankings = []
         for agent_id, agent_executions in agent_data.items():
-            # Get agent details
-            agent_query = select(Agent).where(Agent.id == agent_id)
-            agent_result = await db.execute(agent_query)
-            agent = agent_result.scalar_one_or_none()
+            # Get agent details from pre-fetched dictionary
+            agent = agents_by_id.get(agent_id)
 
             if not agent:
                 continue
@@ -221,6 +234,7 @@ class AnalyticsService:
         rankings.sort(key=lambda x: x["execution_count"], reverse=True)
         return rankings[:limit]
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_token_usage_breakdown(
         self,
         db: AsyncSession,
@@ -261,19 +275,26 @@ class AnalyticsService:
                 "breakdown": [],
             }
 
+        # Pre-fetch agents if grouping by agent or model (fixes N+1 query issue)
+        agents_by_id: Dict[int, Agent] = {}
+        if group_by in ("agent", "model"):
+            unique_agent_ids = list(set(e.agent_id for e in executions))
+            agents_query = select(Agent).where(Agent.id.in_(unique_agent_ids))
+            agents_result = await db.execute(agents_query)
+            agents = agents_result.scalars().all()
+            agents_by_id = {agent.id: agent for agent in agents}
+
         # Group executions
         groups: Dict[str, List[Execution]] = {}
         for execution in executions:
             if group_by == "agent":
-                # Get agent name
-                agent_query = select(Agent.name).where(Agent.id == execution.agent_id)
-                agent_result = await db.execute(agent_query)
-                group_key = agent_result.scalar_one_or_none() or f"Agent {execution.agent_id}"
+                # Get agent name from pre-fetched dictionary
+                agent = agents_by_id.get(execution.agent_id)
+                group_key = agent.name if agent else f"Agent {execution.agent_id}"
             elif group_by == "model":
-                # Get model name
-                agent_query = select(Agent.model_name).where(Agent.id == execution.agent_id)
-                model_result = await db.execute(agent_query)
-                group_key = model_result.scalar_one_or_none() or "Unknown"
+                # Get model name from pre-fetched dictionary
+                agent = agents_by_id.get(execution.agent_id)
+                group_key = agent.model_name if agent else "Unknown"
             elif group_by == "day":
                 # Group by day
                 group_key = execution.started_at.strftime("%Y-%m-%d")
@@ -318,6 +339,7 @@ class AnalyticsService:
             "breakdown": breakdown,
         }
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_error_analysis(
         self,
         db: AsyncSession,
@@ -394,6 +416,7 @@ class AnalyticsService:
         error_list.sort(key=lambda x: x["count"], reverse=True)
         return error_list[:limit]
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_agent_performance_metrics(
         self,
         db: AsyncSession,
@@ -552,6 +575,7 @@ class AnalyticsService:
 
         return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
 
+    @cache_result(ttl=60)  # 1 minute cache (more dynamic)
     async def get_system_performance_metrics(
         self,
         db: AsyncSession,
@@ -718,6 +742,7 @@ class AnalyticsService:
             "recommendations": recommendations,
         }
 
+    @cache_result(ttl=600)  # 10 minutes cache (projections are expensive)
     async def get_cost_projections(
         self,
         db: AsyncSession,

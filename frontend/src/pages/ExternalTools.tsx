@@ -94,8 +94,12 @@ export const ExternalTools: React.FC = () => {
       await deleteTool.mutateAsync(deletingTool.id);
       showSuccess(`Tool "${deletingTool.tool_name}" deleted successfully`);
       setDeletingTool(null);
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to delete tool';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to delete tool';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     }
   };
