@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Menu, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
 import { useHealthStatus } from '../../hooks/useMonitoring';
 import { useAuth } from '../../hooks/useAuth';
 import { ArrowRightOnRectangleIcon, Bars3Icon } from '@heroicons/react/24/outline';
@@ -12,7 +14,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   const { data: health } = useHealthStatus();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -63,52 +64,52 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
           </div>
 
           {/* User Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="min-w-[44px] min-h-[44px] w-10 h-10 sm:w-10 sm:h-10 rounded-full bg-primary-600 flex items-center justify-center hover:bg-primary-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500"
-              aria-label="User menu"
-              aria-expanded={showUserMenu}
-            >
+          <Menu as="div" className="relative">
+            <Menu.Button className="min-w-[44px] min-h-[44px] w-10 h-10 sm:w-10 sm:h-10 rounded-full bg-primary-600 flex items-center justify-center hover:bg-primary-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500">
               <span className="text-white text-sm font-medium">
                 {getUserInitials()}
               </span>
-            </button>
+            </Menu.Button>
 
-            {/* Dropdown Menu */}
-            {showUserMenu && (
-              <>
-                {/* Backdrop to close menu */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowUserMenu(false)}
-                />
-
-                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
-                  <div className="py-1">
-                    {/* User Info */}
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">
-                        {user?.username}
-                      </p>
-                      <p className="text-sm text-gray-500 truncate">
-                        {user?.email}
-                      </p>
-                    </div>
-
-                    {/* Menu Items */}
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      <ArrowRightOnRectangleIcon className="h-5 w-5 mr-3 text-gray-400" />
-                      Sign out
-                    </button>
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="transform opacity-0 scale-95"
+              enterTo="transform opacity-100 scale-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="transform opacity-100 scale-100"
+              leaveTo="transform opacity-0 scale-95"
+            >
+              <Menu.Items className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-20">
+                <div className="py-1">
+                  {/* User Info */}
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">
+                      {user?.username}
+                    </p>
+                    <p className="text-sm text-gray-500 truncate">
+                      {user?.email}
+                    </p>
                   </div>
+
+                  {/* Menu Items */}
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={handleLogout}
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } w-full flex items-center px-4 py-2 text-sm text-gray-700 transition-colors`}
+                      >
+                        <ArrowRightOnRectangleIcon className="h-5 w-5 mr-3 text-gray-400" />
+                        Sign out
+                      </button>
+                    )}
+                  </Menu.Item>
                 </div>
-              </>
-            )}
-          </div>
+              </Menu.Items>
+            </Transition>
+          </Menu>
         </div>
       </div>
     </header>
