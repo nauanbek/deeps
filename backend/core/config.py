@@ -38,8 +38,7 @@ class Settings(BaseSettings):
 
     # Security Configuration
     SECRET_KEY: str = Field(
-        default="dev-secret-key-change-in-production-use-strong-random-key",
-        description="Secret key for JWT token signing (MUST be changed in production)",
+        description="Secret key for JWT token signing (required, min 32 chars)",
     )
     ALGORITHM: str = Field(
         default="HS256",
@@ -71,6 +70,44 @@ class Settings(BaseSettings):
         default="development",
         description="Environment name (development, testing, production)",
     )
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        """
+        Validate SECRET_KEY is secure and meets requirements.
+
+        Args:
+            v: The SECRET_KEY value
+
+        Returns:
+            str: The validated SECRET_KEY
+
+        Raises:
+            ValueError: If SECRET_KEY is insecure or too short
+        """
+        if not v:
+            raise ValueError("SECRET_KEY must be set")
+        if len(v) < 32:
+            raise ValueError(
+                "SECRET_KEY must be at least 32 characters. "
+                "Generate with: openssl rand -hex 32"
+            )
+        # Check for common insecure values
+        insecure_keys = [
+            "dev-secret-key",
+            "change-me",
+            "secret",
+            "password",
+            "test",
+            "example",
+        ]
+        if any(bad in v.lower() for bad in insecure_keys):
+            raise ValueError(
+                "SECRET_KEY contains insecure value. "
+                "Generate secure key with: openssl rand -hex 32"
+            )
+        return v
 
     model_config = SettingsConfigDict(
         env_file=".env",

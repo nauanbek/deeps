@@ -37,6 +37,97 @@ from services.execution_service import execution_service
 router = APIRouter(prefix="/executions", tags=["executions"])
 
 
+# ============================================================================
+# Helper Functions - Authorization
+# ============================================================================
+
+
+async def get_agent_or_403(
+    agent_id: int,
+    user_id: int,
+    db: AsyncSession,
+) -> "Agent":
+    """
+    Get agent and verify ownership, raise 403 if not owner.
+
+    Args:
+        agent_id: Agent ID to fetch
+        user_id: Current user ID (from JWT token)
+        db: Database session
+
+    Returns:
+        Agent: The agent if user is the owner
+
+    Raises:
+        404: Agent not found
+        403: User doesn't own this agent (access denied)
+    """
+    from models.agent import Agent
+    from sqlalchemy import select
+
+    stmt = select(Agent).where(Agent.id == agent_id)
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent with id {agent_id} not found",
+        )
+
+    # Critical security check: Verify ownership
+    if agent.created_by_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this agent",
+        )
+
+    return agent
+
+
+async def get_execution_or_403(
+    execution_id: int,
+    user_id: int,
+    db: AsyncSession,
+) -> "Execution":
+    """
+    Get execution and verify ownership, raise 403 if not owner.
+
+    Args:
+        execution_id: Execution ID to fetch
+        user_id: Current user ID (from JWT token)
+        db: Database session
+
+    Returns:
+        Execution: The execution if user is the owner
+
+    Raises:
+        404: Execution not found
+        403: User doesn't own this execution (access denied)
+    """
+    from models.execution import Execution
+    from sqlalchemy import select
+
+    stmt = select(Execution).where(Execution.id == execution_id)
+    result = await db.execute(stmt)
+    execution = result.scalar_one_or_none()
+
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Execution with id {execution_id} not found",
+        )
+
+    # Critical security check: Verify ownership
+    if execution.created_by_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this execution",
+        )
+
+    return execution
+
+
 @router.post("/", response_model=ExecutionResponse, status_code=status.HTTP_201_CREATED)
 async def create_execution(
     execution_data: ExecutionCreate,
@@ -51,22 +142,29 @@ async def create_execution(
 
     Args:
         execution_data: Execution creation data
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Created execution
 
     Raises:
+        HTTPException: 403 if user doesn't own the agent
         HTTPException: 404 if agent not found
     """
     try:
+        # Verify user owns the agent before creating execution
+        await get_agent_or_403(execution_data.agent_id, current_user.id, db)
+
         execution = await execution_service.create_execution(
             db=db,
             agent_id=execution_data.agent_id,
             prompt=execution_data.prompt,
-            created_by_id=1,  # Hardcoded for single-user MVP
+            created_by_id=current_user.id,
         )
         return execution
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -85,21 +183,29 @@ async def start_execution(
 
     Args:
         execution_id: ID of execution to start
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Execution completion summary
 
     Raises:
+        HTTPException: 403 if user doesn't own the execution
+        HTTPException: 404 if execution not found
         HTTPException: 400 if execution cannot be started
     """
     try:
+        # Verify user owns the execution before starting
+        await get_execution_or_403(execution_id, current_user.id, db)
+
         # Collect all traces (non-streaming)
         traces = []
         async for trace in execution_service.start_execution(db, execution_id):
             traces.append(trace)
 
         return {"status": "completed", "trace_count": len(traces)}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -115,19 +221,18 @@ async def get_execution(
 
     Args:
         execution_id: Execution ID
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Execution details
 
     Raises:
+        HTTPException: 403 if user doesn't own the execution
         HTTPException: 404 if not found
     """
-    execution = await execution_service.get_execution(db, execution_id)
-    if not execution:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found"
-        )
+    # Verify ownership before returning execution
+    execution = await get_execution_or_403(execution_id, current_user.id, db)
     return execution
 
 
@@ -143,18 +248,35 @@ async def list_executions(
     """
     List executions with optional filters.
 
+    Only returns executions owned by the current user.
+
     Args:
-        agent_id: Filter by agent ID
+        agent_id: Filter by agent ID (optional)
         status: Filter by status (pending, running, completed, failed, cancelled)
         skip: Pagination offset
         limit: Pagination limit
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
-        List of executions
+        List of executions owned by the current user
+
+    Raises:
+        HTTPException: 403 if agent_id specified but user doesn't own it
     """
+    # If agent_id filter is specified, verify user owns that agent
+    if agent_id is not None:
+        await get_agent_or_403(agent_id, current_user.id, db)
+
+    # List executions - need to filter by user_id
+    # Note: execution_service.list_executions should filter by created_by_id
     executions = await execution_service.list_executions(
-        db=db, agent_id=agent_id, status=status, skip=skip, limit=limit
+        db=db,
+        agent_id=agent_id,
+        status=status,
+        skip=skip,
+        limit=limit,
+        user_id=current_user.id,  # Filter by current user
     )
     return executions
 
@@ -170,14 +292,20 @@ async def cancel_execution(
 
     Args:
         execution_id: Execution ID to cancel
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Cancellation confirmation
 
     Raises:
-        HTTPException: 400 if execution not running or not found
+        HTTPException: 403 if user doesn't own the execution
+        HTTPException: 404 if execution not found
+        HTTPException: 400 if execution not running
     """
+    # Verify user owns the execution before cancelling
+    await get_execution_or_403(execution_id, current_user.id, db)
+
     success = await execution_service.cancel_execution(db, execution_id)
     if not success:
         raise HTTPException(
@@ -204,11 +332,19 @@ async def get_execution_traces(
         execution_id: Execution ID
         skip: Pagination offset
         limit: Pagination limit
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         List of traces ordered by sequence number
+
+    Raises:
+        HTTPException: 403 if user doesn't own the execution
+        HTTPException: 404 if execution not found
     """
+    # Verify user owns the execution before returning traces
+    await get_execution_or_403(execution_id, current_user.id, db)
+
     traces = await execution_service.get_execution_traces(
         db=db, execution_id=execution_id, skip=skip, limit=limit
     )
@@ -311,6 +447,17 @@ async def stream_execution(websocket: WebSocket, execution_id: int):
                     "type": "auth",
                     "status": "success"
                 })
+
+                # Verify user owns the execution before starting
+                try:
+                    await get_execution_or_403(execution_id, user.id, db)
+                except HTTPException as e:
+                    await websocket.send_json({
+                        "event_type": "error",
+                        "content": {"error": f"Access denied: {e.detail}"}
+                    })
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
 
                 # Start execution and stream traces
                 async for trace in execution_service.start_execution(db, execution_id):

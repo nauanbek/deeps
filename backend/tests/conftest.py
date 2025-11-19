@@ -184,7 +184,8 @@ def test_settings() -> dict:
     """
     return {
         "DATABASE_URL": TEST_DATABASE_URL,
-        "SECRET_KEY": "test-secret-key-for-testing-only",
+        # Valid 64-char hex key for testing (meets 32-char minimum requirement)
+        "SECRET_KEY": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
         "ALGORITHM": "HS256",
         "ACCESS_TOKEN_EXPIRE_MINUTES": 30,
         "CORS_ORIGINS_STR": "http://localhost:3000,http://testserver",
