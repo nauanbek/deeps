@@ -41,15 +41,22 @@ if settings.ENVIRONMENT == "production" and "postgresql" in DATABASE_URL.lower()
 
 # Create async engine with connection pooling
 # Increased pool size for production concurrency (Problem #12)
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=(settings.ENVIRONMENT == "development"),  # Logging only in development
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_size=DB_POOL_SIZE,  # Base connection pool size
-    max_overflow=DB_MAX_OVERFLOW,  # Maximum overflow connections
-    pool_recycle=DB_POOL_RECYCLE_SECONDS,  # Recycle connections after 1 hour
-    connect_args=connect_args,
-)
+# Note: pool_size/max_overflow not used for SQLite
+engine_kwargs = {
+    "echo": settings.ENVIRONMENT == "development",  # Logging only in development
+    "connect_args": connect_args,
+}
+
+# Only add pool parameters for PostgreSQL (not supported by SQLite)
+if "postgresql" in DATABASE_URL.lower():
+    engine_kwargs.update({
+        "pool_pre_ping": True,  # Verify connections before using them
+        "pool_size": DB_POOL_SIZE,  # Base connection pool size
+        "max_overflow": DB_MAX_OVERFLOW,  # Maximum overflow connections
+        "pool_recycle": DB_POOL_RECYCLE_SECONDS,  # Recycle connections after 1 hour
+    })
+
+engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(

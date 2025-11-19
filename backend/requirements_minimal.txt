@@ -1,0 +1,35 @@
+# Minimal dependencies for testing (using SQLite)
+
+# Web Framework
+fastapi==0.121.3
+uvicorn[standard]==0.32.1
+python-multipart==0.0.20
+
+# Database (SQLite for tests)
+sqlalchemy==2.0.44
+alembic==1.17.1
+greenlet==3.2.4
+aiosqlite==0.20.0
+
+# deepagents - let pip resolve versions
+deepagents==0.2.5
+
+# Validation
+pydantic==2.12.4
+pydantic-settings==2.7.0
+
+# Auth & Security
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.0
+python-dotenv==1.0.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.28.1
+
+# Monitoring
+loguru==0.7.3
+prometheus-client==0.21.0
