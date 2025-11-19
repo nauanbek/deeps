@@ -14,6 +14,13 @@ from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
+from core.constants import (
+    RATE_LIMIT_ANALYTICS,
+    RATE_LIMIT_AUTH,
+    RATE_LIMIT_DEFAULT,
+    RATE_LIMIT_EXECUTIONS,
+    RATE_LIMIT_WINDOW_SECONDS,
+)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -27,8 +34,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app,
         redis_url: str,
-        default_limit: int = 60,
-        default_window: int = 60,
+        default_limit: int = RATE_LIMIT_DEFAULT,
+        default_window: int = RATE_LIMIT_WINDOW_SECONDS,
     ):
         """
         Initialize rate limiter.
@@ -36,8 +43,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Args:
             app: FastAPI application
             redis_url: Redis connection URL
-            default_limit: Default requests per window (60 req/min)
-            default_window: Time window in seconds (60s = 1 minute)
+            default_limit: Default requests per window (from constants)
+            default_window: Time window in seconds (from constants)
         """
         super().__init__(app)
         self.redis_url = redis_url
@@ -204,16 +211,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """
         # Stricter limits for expensive operations
         if "/api/v1/executions" in path and method == "POST":
-            # Agent execution: 10 requests per minute
-            return 10, 60
+            # Agent execution: limited requests per minute
+            return RATE_LIMIT_EXECUTIONS, RATE_LIMIT_WINDOW_SECONDS
 
         if "/api/v1/analytics" in path:
-            # Analytics: 30 requests per minute
-            return 30, 60
+            # Analytics: moderate limit
+            return RATE_LIMIT_ANALYTICS, RATE_LIMIT_WINDOW_SECONDS
 
         if "/api/v1/auth" in path:
-            # Authentication: 5 requests per minute (prevent brute force)
-            return 5, 60
+            # Authentication: strict limit (prevent brute force)
+            return RATE_LIMIT_AUTH, RATE_LIMIT_WINDOW_SECONDS
 
         # Default for all other endpoints
         return self.default_limit, self.default_window

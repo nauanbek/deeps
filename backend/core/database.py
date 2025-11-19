@@ -13,6 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from core.config import settings
+from core.constants import (
+    DB_MAX_OVERFLOW,
+    DB_POOL_RECYCLE_SECONDS,
+    DB_POOL_SIZE,
+)
 
 # Database URL loaded from settings (environment variables)
 # Format: postgresql+asyncpg://user:password@host:port/database?sslmode=require
@@ -40,9 +45,9 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=(settings.ENVIRONMENT == "development"),  # Logging only in development
     pool_pre_ping=True,  # Verify connections before using them
-    pool_size=20,  # Increased from 10 for concurrent load
-    max_overflow=40,  # Increased from 20 for burst traffic
-    pool_recycle=3600,  # Recycle connections after 1 hour to prevent stale connections
+    pool_size=DB_POOL_SIZE,  # Base connection pool size
+    max_overflow=DB_MAX_OVERFLOW,  # Maximum overflow connections
+    pool_recycle=DB_POOL_RECYCLE_SECONDS,  # Recycle connections after 1 hour
     connect_args=connect_args,
 )
 

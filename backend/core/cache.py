@@ -16,6 +16,7 @@ import redis.asyncio as redis
 from loguru import logger
 
 from core.config import settings
+from core.constants import CACHE_DEFAULT_TTL
 
 
 # Global Redis client (initialized lazily)
@@ -91,7 +92,7 @@ def _make_cache_key(prefix: str, *args, **kwargs) -> str:
     return f"cache:{prefix}:{key_hash}"
 
 
-def cache_result(ttl: int = 300, key_prefix: Optional[str] = None):
+def cache_result(ttl: int = CACHE_DEFAULT_TTL, key_prefix: Optional[str] = None):
     """
     Decorator to cache function results in Redis.
 
@@ -99,7 +100,7 @@ def cache_result(ttl: int = 300, key_prefix: Optional[str] = None):
     Supports async functions only.
 
     Args:
-        ttl: Time-to-live in seconds (default: 300 = 5 minutes)
+        ttl: Time-to-live in seconds (default from constants: 5 minutes)
         key_prefix: Optional custom cache key prefix (defaults to function name)
 
     Returns:

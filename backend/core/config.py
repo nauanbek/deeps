@@ -10,6 +10,12 @@ from typing import Any
 from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core.constants import (
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
+    JWT_ALGORITHM,
+    SECRET_KEY_MIN_LENGTH,
+)
+
 
 class Settings(BaseSettings):
     """
@@ -41,11 +47,11 @@ class Settings(BaseSettings):
         description="Secret key for JWT token signing (required, min 32 chars)",
     )
     ALGORITHM: str = Field(
-        default="HS256",
+        default=JWT_ALGORITHM,
         description="Algorithm for JWT token encoding",
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30,
+        default=JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
         description="JWT token expiration time in minutes",
     )
 
@@ -94,9 +100,9 @@ class Settings(BaseSettings):
         """
         if not v:
             raise ValueError("SECRET_KEY must be set")
-        if len(v) < 32:
+        if len(v) < SECRET_KEY_MIN_LENGTH:
             raise ValueError(
-                "SECRET_KEY must be at least 32 characters. "
+                f"SECRET_KEY must be at least {SECRET_KEY_MIN_LENGTH} characters. "
                 "Generate with: openssl rand -hex 32"
             )
         # Check for common insecure values
