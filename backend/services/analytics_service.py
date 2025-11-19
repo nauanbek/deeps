@@ -15,6 +15,66 @@ from models.execution import Execution
 class AnalyticsService:
     """Service for managing advanced analytics operations."""
 
+    def _get_date_trunc_expr(self, db: AsyncSession, interval: str, column):
+        """
+        Get database-specific date truncation expression.
+
+        PostgreSQL uses date_trunc(), SQLite uses strftime().
+
+        Args:
+            db: Database session
+            interval: Time interval ('hour', 'day', 'week', 'month')
+            column: Column to truncate
+
+        Returns:
+            SQLAlchemy expression for date truncation
+        """
+        # Detect database type from the engine URL
+        engine_url = str(db.get_bind().url)
+        is_sqlite = 'sqlite' in engine_url.lower()
+
+        if is_sqlite:
+            # SQLite uses strftime()
+            format_map = {
+                'hour': '%Y-%m-%d %H:00:00',
+                'day': '%Y-%m-%d',
+                'week': '%Y-%W',  # Year-Week
+                'month': '%Y-%m',
+            }
+            fmt = format_map.get(interval, '%Y-%m-%d')
+            return func.strftime(fmt, column)
+        else:
+            # PostgreSQL uses date_trunc()
+            return func.date_trunc(interval, column)
+
+    def _get_duration_seconds_expr(self, db: AsyncSession, start_column, end_column):
+        """
+        Get database-specific expression for calculating duration in seconds.
+
+        PostgreSQL uses EXTRACT(epoch FROM ...), SQLite uses STRFTIME('%s', ...).
+
+        Args:
+            db: Database session
+            start_column: Start timestamp column
+            end_column: End timestamp column
+
+        Returns:
+            SQLAlchemy expression for duration in seconds
+        """
+        from sqlalchemy import Integer
+
+        # Detect database type from the engine URL
+        engine_url = str(db.get_bind().url)
+        is_sqlite = 'sqlite' in engine_url.lower()
+
+        if is_sqlite:
+            # SQLite: Convert timestamps to Unix epoch and subtract
+            # julianday() returns fractional days, multiply by 86400 to get seconds
+            return (func.julianday(end_column) - func.julianday(start_column)) * 86400
+        else:
+            # PostgreSQL: Use EXTRACT(epoch FROM interval)
+            return func.extract('epoch', end_column - start_column)
+
     @cache_result(ttl=300)  # 5 minutes cache
     async def get_execution_time_series(
         self,
@@ -39,19 +99,14 @@ class AnalyticsService:
         Returns:
             List of time-series data points with execution metrics
         """
-        # Map interval to PostgreSQL date_trunc precision
-        trunc_precision = {
-            "hour": "hour",
-            "day": "day",
-            "week": "week",
-            "month": "month",
-        }.get(interval, "day")
-
         # Build aggregated query (fixes memory issue - aggregates at DB level)
         # Returns ~100 rows instead of 100,000+ execution objects
+        # Use database-specific date truncation (PostgreSQL: date_trunc, SQLite: strftime)
+        bucket_expr = self._get_date_trunc_expr(db, interval, Execution.started_at).label('bucket')
+
         query = (
             select(
-                func.date_trunc(trunc_precision, Execution.started_at).label('bucket'),
+                bucket_expr,
                 func.count().label('total'),
                 func.sum(
                     case((Execution.status == "completed", 1), else_=0)
@@ -70,7 +125,7 @@ class AnalyticsService:
                                 Execution.completed_at.isnot(None),
                                 Execution.started_at.isnot(None)
                             ),
-                            func.extract('epoch', Execution.completed_at - Execution.started_at)
+                            self._get_duration_seconds_expr(db, Execution.started_at, Execution.completed_at)
                         ),
                         else_=None
                     )

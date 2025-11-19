@@ -175,6 +175,24 @@ def client_no_auth(db_session: AsyncSession) -> Generator:
 
 
 @pytest.fixture(scope="function")
+async def fake_redis() -> AsyncGenerator:
+    """
+    Create a fake Redis client for testing lockout service.
+
+    Uses fakeredis to provide Redis functionality without a real server.
+
+    Yields:
+        FakeRedis: Async fake Redis client
+    """
+    import fakeredis.aioredis
+
+    redis_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    yield redis_client
+    await redis_client.flushall()
+    await redis_client.close()
+
+
+@pytest.fixture(scope="function")
 def test_settings() -> dict:
     """
     Provide test settings that override default configuration.

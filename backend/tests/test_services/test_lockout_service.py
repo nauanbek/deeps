@@ -21,11 +21,13 @@ class TestLockoutService:
     """Test suite for LockoutService."""
 
     @pytest.fixture
-    async def lockout_service(self, clean_redis):
+    async def lockout_service(self, fake_redis):
         """Create a fresh lockout service instance for each test."""
         service = LockoutService()
+        # Inject fake Redis client for testing
+        service._redis = fake_redis
         yield service
-        await service.close()
+        # No need to close fake_redis here, the fixture handles it
 
     async def test_is_locked_returns_false_for_unlocked_account(self, lockout_service: LockoutService):
         """Test that is_locked returns False for an account that is not locked."""
@@ -296,11 +298,13 @@ class TestLockoutServiceEdgeCases:
     """Test edge cases and error conditions."""
 
     @pytest.fixture
-    async def lockout_service(self, clean_redis):
+    async def lockout_service(self, fake_redis):
         """Create a fresh lockout service instance for each test."""
         service = LockoutService()
+        # Inject fake Redis client for testing
+        service._redis = fake_redis
         yield service
-        await service.close()
+        # No need to close fake_redis here, the fixture handles it
 
     async def test_empty_username(self, lockout_service: LockoutService):
         """Test handling of empty username."""

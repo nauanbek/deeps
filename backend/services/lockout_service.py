@@ -116,13 +116,21 @@ class LockoutService:
             Remaining seconds if locked, None if not locked
         """
         redis_client = await self._get_redis()
+        if redis_client is None:
+            # Redis unavailable - cannot check lockout
+            return None
+
         lockout_key = self._lockout_key(username)
 
-        if await redis_client.exists(lockout_key):
-            ttl = await redis_client.ttl(lockout_key)
-            return ttl if ttl > 0 else None
+        try:
+            if await redis_client.exists(lockout_key):
+                ttl = await redis_client.ttl(lockout_key)
+                return ttl if ttl > 0 else None
 
-        return None
+            return None
+        except Exception as e:
+            logger.warning(f"Redis error in get_remaining_lockout_time: {e}")
+            return None
 
     async def record_failed_attempt(self, username: str) -> dict:
         """
@@ -244,20 +252,28 @@ class LockoutService:
             True if account was locked and unlocked, False if not locked
         """
         redis_client = await self._get_redis()
+        if redis_client is None:
+            # Redis unavailable - cannot unlock
+            return False
+
         lockout_key = self._lockout_key(username)
         attempt_key = self._attempt_key(username)
 
-        was_locked = await redis_client.exists(lockout_key)
+        try:
+            was_locked = await redis_client.exists(lockout_key)
 
-        if was_locked:
-            # Remove lockout and attempts
-            await redis_client.delete(lockout_key)
-            await redis_client.delete(attempt_key)
+            if was_locked:
+                # Remove lockout and attempts
+                await redis_client.delete(lockout_key)
+                await redis_client.delete(attempt_key)
 
-            logger.info(f"Manually unlocked account '{username}'.")
-            return True
+                logger.info(f"Manually unlocked account '{username}'.")
+                return True
 
-        return False
+            return False
+        except Exception as e:
+            logger.warning(f"Redis error in unlock_account: {e}")
+            return False
 
     async def get_lockout_status(self, username: str) -> dict:
         """
@@ -270,31 +286,51 @@ class LockoutService:
             Dictionary with lockout status information
         """
         redis_client = await self._get_redis()
-        attempt_key = self._attempt_key(username)
-        lockout_key = self._lockout_key(username)
-
-        is_locked = await redis_client.exists(lockout_key)
-        failed_attempts = await redis_client.get(attempt_key)
-
-        if is_locked:
-            lockout_ttl = await redis_client.ttl(lockout_key)
+        if redis_client is None:
+            # Redis unavailable - return default status
             return {
-                "locked": True,
+                "locked": False,
                 "failed_attempts": 0,
-                "remaining_attempts": 0,
-                "unlocks_in_seconds": lockout_ttl if lockout_ttl > 0 else 0,
+                "remaining_attempts": self.MAX_ATTEMPTS,
+                "unlocks_in_seconds": 0,
                 "max_attempts": self.MAX_ATTEMPTS,
             }
 
-        attempts = int(failed_attempts) if failed_attempts else 0
+        attempt_key = self._attempt_key(username)
+        lockout_key = self._lockout_key(username)
 
-        return {
-            "locked": False,
-            "failed_attempts": attempts,
-            "remaining_attempts": self.MAX_ATTEMPTS - attempts,
-            "unlocks_in_seconds": 0,
-            "max_attempts": self.MAX_ATTEMPTS,
-        }
+        try:
+            is_locked = await redis_client.exists(lockout_key)
+            failed_attempts = await redis_client.get(attempt_key)
+
+            if is_locked:
+                lockout_ttl = await redis_client.ttl(lockout_key)
+                return {
+                    "locked": True,
+                    "failed_attempts": 0,
+                    "remaining_attempts": 0,
+                    "unlocks_in_seconds": lockout_ttl if lockout_ttl > 0 else 0,
+                    "max_attempts": self.MAX_ATTEMPTS,
+                }
+
+            attempts = int(failed_attempts) if failed_attempts else 0
+
+            return {
+                "locked": False,
+                "failed_attempts": attempts,
+                "remaining_attempts": self.MAX_ATTEMPTS - attempts,
+                "unlocks_in_seconds": 0,
+                "max_attempts": self.MAX_ATTEMPTS,
+            }
+        except Exception as e:
+            logger.warning(f"Redis error in get_lockout_status: {e}")
+            return {
+                "locked": False,
+                "failed_attempts": 0,
+                "remaining_attempts": self.MAX_ATTEMPTS,
+                "unlocks_in_seconds": 0,
+                "max_attempts": self.MAX_ATTEMPTS,
+            }
 
 
 # Global lockout service instance
