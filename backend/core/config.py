@@ -55,6 +55,12 @@ class Settings(BaseSettings):
         description="Allowed CORS origins (comma-separated)",
     )
 
+    # Credential Encryption Key for External Tools
+    CREDENTIAL_ENCRYPTION_KEY: str | None = Field(
+        default=None,
+        description="Fernet encryption key for external tool credentials",
+    )
+
     # External API Keys (Optional)
     ANTHROPIC_API_KEY: str | None = Field(
         default=None,
@@ -107,6 +113,47 @@ class Settings(BaseSettings):
                 "SECRET_KEY contains insecure value. "
                 "Generate secure key with: openssl rand -hex 32"
             )
+        return v
+
+    @field_validator("CORS_ORIGINS_STR")
+    @classmethod
+    def validate_cors_origins(cls, v: str, values: Any) -> str:
+        """
+        Validate CORS origins configuration for security.
+
+        When using credentials (cookies, auth headers), wildcard "*" is not allowed
+        as it creates security vulnerabilities (CSRF, credential theft).
+
+        Args:
+            v: CORS origins string
+            values: Other field values
+
+        Returns:
+            str: The validated CORS origins string
+
+        Raises:
+            ValueError: If CORS configuration is insecure
+        """
+        if not v:
+            raise ValueError("CORS_ORIGINS_STR must be set")
+
+        origins = [origin.strip() for origin in v.split(",") if origin.strip()]
+
+        # Check for wildcard with credentials (insecure)
+        if "*" in origins:
+            raise ValueError(
+                "CORS wildcard '*' is not allowed when using credentials. "
+                "Specify exact origins (e.g., 'https://app.example.com,https://dashboard.example.com')"
+            )
+
+        # Validate origin format (basic check)
+        for origin in origins:
+            if not origin.startswith(("http://", "https://")) and origin != "testserver":
+                raise ValueError(
+                    f"Invalid CORS origin '{origin}'. "
+                    "Must start with http:// or https:// (or be 'testserver' for tests)"
+                )
+
         return v
 
     model_config = SettingsConfigDict(
