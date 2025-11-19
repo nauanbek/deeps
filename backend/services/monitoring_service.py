@@ -2,7 +2,7 @@
 
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, case
 from datetime import datetime, timedelta
 
 from models.agent import Agent
@@ -157,10 +157,10 @@ class MonitoringService:
                 Execution.agent_id,
                 func.count(Execution.id).label('total'),
                 func.sum(
-                    func.case((Execution.status == "completed", 1), else_=0)
+                    case((Execution.status == "completed", 1), else_=0)
                 ).label('success'),
                 func.sum(
-                    func.case((Execution.status == "failed", 1), else_=0)
+                    case((Execution.status == "failed", 1), else_=0)
                 ).label('errors'),
                 func.max(Execution.started_at).label('last_execution')
             )
