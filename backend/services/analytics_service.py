@@ -174,13 +174,20 @@ class AnalyticsService:
                 agent_data[execution.agent_id] = []
             agent_data[execution.agent_id].append(execution)
 
+        # Pre-fetch all agents in a single query (fixes N+1 query issue)
+        agent_ids = list(agent_data.keys())
+        agents_query = select(Agent).where(Agent.id.in_(agent_ids))
+        agents_result = await db.execute(agents_query)
+        agents = agents_result.scalars().all()
+
+        # Create agent lookup dictionary
+        agents_by_id = {agent.id: agent for agent in agents}
+
         # Build rankings
         rankings = []
         for agent_id, agent_executions in agent_data.items():
-            # Get agent details
-            agent_query = select(Agent).where(Agent.id == agent_id)
-            agent_result = await db.execute(agent_query)
-            agent = agent_result.scalar_one_or_none()
+            # Get agent details from pre-fetched dictionary
+            agent = agents_by_id.get(agent_id)
 
             if not agent:
                 continue
@@ -261,19 +268,26 @@ class AnalyticsService:
                 "breakdown": [],
             }
 
+        # Pre-fetch agents if grouping by agent or model (fixes N+1 query issue)
+        agents_by_id: Dict[int, Agent] = {}
+        if group_by in ("agent", "model"):
+            unique_agent_ids = list(set(e.agent_id for e in executions))
+            agents_query = select(Agent).where(Agent.id.in_(unique_agent_ids))
+            agents_result = await db.execute(agents_query)
+            agents = agents_result.scalars().all()
+            agents_by_id = {agent.id: agent for agent in agents}
+
         # Group executions
         groups: Dict[str, List[Execution]] = {}
         for execution in executions:
             if group_by == "agent":
-                # Get agent name
-                agent_query = select(Agent.name).where(Agent.id == execution.agent_id)
-                agent_result = await db.execute(agent_query)
-                group_key = agent_result.scalar_one_or_none() or f"Agent {execution.agent_id}"
+                # Get agent name from pre-fetched dictionary
+                agent = agents_by_id.get(execution.agent_id)
+                group_key = agent.name if agent else f"Agent {execution.agent_id}"
             elif group_by == "model":
-                # Get model name
-                agent_query = select(Agent.model_name).where(Agent.id == execution.agent_id)
-                model_result = await db.execute(agent_query)
-                group_key = model_result.scalar_one_or_none() or "Unknown"
+                # Get model name from pre-fetched dictionary
+                agent = agents_by_id.get(execution.agent_id)
+                group_key = agent.model_name if agent else "Unknown"
             elif group_by == "day":
                 # Group by day
                 group_key = execution.started_at.strftime("%Y-%m-%d")
