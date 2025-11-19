@@ -484,11 +484,13 @@ async def stream_execution(websocket: WebSocket, execution_id: int):
             await websocket.send_json(
                 {"event_type": "error", "content": {"error": str(e)}}
             )
-        except:
+        except (RuntimeError, ConnectionError):
+            # WebSocket already closed or connection lost
             pass
     finally:
         # Ensure connection is closed
         try:
             await websocket.close()
-        except:
+        except (RuntimeError, ConnectionError):
+            # WebSocket already closed
             pass
