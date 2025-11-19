@@ -59,8 +59,12 @@ export const ToolConnectionStatus: React.FC<ToolConnectionStatusProps> = ({
     setIsManualTesting(true);
     try {
       await testConnection.mutateAsync({ id: tool.id });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Connection test failed';
+    } catch (error: unknown) {
+      let errorMessage = 'Connection test failed';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     } finally {
       setIsManualTesting(false);

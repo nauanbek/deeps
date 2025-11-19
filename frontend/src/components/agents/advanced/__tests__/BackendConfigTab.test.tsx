@@ -8,7 +8,7 @@ import BackendConfigTab from '../BackendConfigTab';
 // Mock Monaco Editor
 jest.mock('@monaco-editor/react', () => ({
   __esModule: true,
-  default: ({ value, onChange }: any) => (
+  default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
     <textarea
       data-testid="monaco-editor"
       value={value}

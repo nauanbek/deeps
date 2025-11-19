@@ -5,7 +5,7 @@ import { useAuth } from '../useAuth';
 jest.mock('../../contexts/AuthContext', () => ({
   __esModule: true,
   default: {
-    Consumer: ({ children }: any) => children(undefined),
+    Consumer: ({ children }: { children: (value: undefined) => React.ReactNode }) => children(undefined),
   },
 }));
 

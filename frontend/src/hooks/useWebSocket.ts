@@ -18,7 +18,7 @@ const WS_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
  */
 interface UseWebSocketOptions {
   /** Callback invoked when a message is received */
-  onMessage?: (data: any) => void;
+  onMessage?: (data: unknown) => void;
   /** Callback invoked on WebSocket errors */
   onError?: (error: Error) => void;
   /** Whether to automatically connect on mount. Default: true */
@@ -91,9 +91,9 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
    * Send a message to the server via WebSocket.
    *
    * @param {string} event - Event name to emit
-   * @param {any} data - Data payload to send
+   * @param {unknown} data - Data payload to send
    */
-  const sendMessage = (event: string, data: any) => {
+  const sendMessage = (event: string, data: unknown) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit(event, data);
     }
@@ -105,7 +105,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
    * @param {string} event - Event name to listen for
    * @param {Function} callback - Callback invoked when event received
    */
-  const subscribe = (event: string, callback: (data: any) => void) => {
+  const subscribe = (event: string, callback: (data: unknown) => void) => {
     socketRef.current?.on(event, callback);
   };
 

@@ -7,13 +7,14 @@
 
 import React, { useRef, useCallback } from 'react';
 import Editor, { Monaco } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 
 export interface JSONSchema {
   $schema?: string;
   type: string;
-  properties?: Record<string, any>;
+  properties?: Record<string, unknown>;
   required?: string[];
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface JSONSchemaEditorProps {
@@ -26,7 +27,7 @@ interface JSONSchemaEditorProps {
   theme?: 'vs-dark' | 'vs-light';
   placeholder?: string;
   error?: string;
-  onValidate?: (markers: any[]) => void;
+  onValidate?: (markers: editor.IMarker[]) => void;
 }
 
 /**
@@ -69,12 +70,12 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
   error,
   onValidate,
 }) => {
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
 
   const handleEditorDidMount = useCallback(
-    (editor: any, monaco: Monaco) => {
-      editorRef.current = editor;
+    (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      editorRef.current = editorInstance;
       monacoRef.current = monaco;
 
       // Configure JSON schema if provided
@@ -92,7 +93,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
       }
 
       // Set editor options
-      editor.updateOptions({
+      editorInstance.updateOptions({
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         fontSize: 14,
@@ -115,11 +116,11 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
 
       // Add validation listener
       if (onValidate) {
-        const model = editor.getModel();
+        const model = editorInstance.getModel();
         if (model) {
           monaco.editor.onDidChangeMarkers((uris) => {
             const editorUri = model.uri.toString();
-            if (uris.find((uri: any) => uri.toString() === editorUri)) {
+            if (uris.find((uri) => uri.toString() === editorUri)) {
               const markers = monaco.editor.getModelMarkers({ resource: model.uri });
               onValidate(markers);
             }
@@ -129,9 +130,9 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
 
       // Show placeholder if empty
       if (!value && placeholder) {
-        editor.setValue(`// ${placeholder}\n{}`);
+        editorInstance.setValue(`// ${placeholder}\n{}`);
         // Select all so user can start typing
-        editor.setPosition({ lineNumber: 2, column: 2 });
+        editorInstance.setPosition({ lineNumber: 2, column: 2 });
       }
     },
     [schema, language, readOnly, onValidate, value, placeholder]
@@ -160,8 +161,8 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
     try {
       JSON.parse(value);
       return null;
-    } catch (err: any) {
-      return err.message;
+    } catch (err: unknown) {
+      return err instanceof Error ? err.message : 'Invalid JSON';
     }
   }, [value]);
 
@@ -242,8 +243,8 @@ export const useJSONEditor = (initialValue: object = {}) => {
     try {
       JSON.parse(newValue);
       setError('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid JSON');
     }
   }, []);
 

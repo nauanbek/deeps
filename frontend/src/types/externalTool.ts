@@ -163,7 +163,7 @@ export interface ToolConfigField {
   label: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'password' | 'url';
   required: boolean;
-  default?: any;
+  default?: unknown;
   placeholder?: string;
   description?: string;
   validation?: {

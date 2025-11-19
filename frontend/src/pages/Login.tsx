@@ -41,9 +41,13 @@ const Login: React.FC = () => {
     try {
       await login(formData.username, formData.password);
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
-      const message = error.response?.data?.detail || 'Invalid username or password';
+      let message = 'Invalid username or password';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        message = axiosError.response?.data?.detail || message;
+      }
       setApiError(message);
     }
   };

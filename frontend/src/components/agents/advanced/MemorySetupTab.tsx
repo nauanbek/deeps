@@ -41,8 +41,13 @@ export const MemorySetupTab: React.FC<MemorySetupTabProps> = ({
     try {
       await createNs.mutateAsync({ agentId });
       onSuccess?.();
-    } catch (err: any) {
-      onError?.(err.response?.data?.detail || 'Failed to create namespace');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to create namespace';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      onError?.(errorMessage);
     }
   };
 
@@ -51,8 +56,13 @@ export const MemorySetupTab: React.FC<MemorySetupTabProps> = ({
       try {
         await deleteNs.mutateAsync(agentId);
         onSuccess?.();
-      } catch (err: any) {
-        onError?.(err.response?.data?.detail || 'Failed to delete namespace');
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to delete namespace';
+        if (err && typeof err === 'object' && 'response' in err) {
+          const axiosError = err as { response?: { data?: { detail?: string } } };
+          errorMessage = axiosError.response?.data?.detail || errorMessage;
+        }
+        onError?.(errorMessage);
       }
     }
   };
@@ -69,8 +79,13 @@ export const MemorySetupTab: React.FC<MemorySetupTabProps> = ({
       setNewFileName('');
       setNewFileContent('');
       onSuccess?.();
-    } catch (err: any) {
-      onError?.(err.response?.data?.detail || 'Failed to create file');
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to create file';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
+      onError?.(errorMessage);
     }
   };
 
@@ -79,8 +94,13 @@ export const MemorySetupTab: React.FC<MemorySetupTabProps> = ({
       try {
         await deleteFile.mutateAsync({ agentId, fileKey });
         onSuccess?.();
-      } catch (err: any) {
-        onError?.(err.response?.data?.detail || 'Failed to delete file');
+      } catch (err: unknown) {
+        let errorMessage = 'Failed to delete file';
+        if (err && typeof err === 'object' && 'response' in err) {
+          const axiosError = err as { response?: { data?: { detail?: string } } };
+          errorMessage = axiosError.response?.data?.detail || errorMessage;
+        }
+        onError?.(errorMessage);
       }
     }
   };

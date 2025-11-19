@@ -68,8 +68,12 @@ export const SubagentEditModal: React.FC<SubagentEditModalProps> = ({
         },
       });
       onClose();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to update subagent';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to update subagent';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       setError('root', {
         type: 'manual',
         message: errorMessage,

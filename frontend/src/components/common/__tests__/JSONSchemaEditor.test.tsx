@@ -8,7 +8,15 @@ import { renderHook, act } from '@testing-library/react';
 // Mock Monaco Editor
 jest.mock('@monaco-editor/react', () => ({
   __esModule: true,
-  default: ({ value, onChange, onValidate }: any) => (
+  default: ({
+    value,
+    onChange,
+    onValidate,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    onValidate?: (markers: Array<{ message: string }>) => void;
+  }) => (
     <textarea
       data-testid="monaco-editor"
       value={value}

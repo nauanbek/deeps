@@ -73,8 +73,12 @@ export const SubagentSelectionModal: React.FC<SubagentSelectionModalProps> = ({
       });
       reset();
       onClose();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to add subagent';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to add subagent';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       setError('root', {
         type: 'manual',
         message: errorMessage,

@@ -70,18 +70,23 @@ const Register: React.FC = () => {
     try {
       await register(formData.username, formData.email, formData.password);
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
 
       // Handle validation errors (422)
       let message = 'Registration failed. Please try again.';
-      if (error.response?.data?.detail) {
-        const detail = error.response.data.detail;
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: unknown } } };
+        const detail = axiosError.response?.data?.detail;
 
         // If detail is an array of validation errors
         if (Array.isArray(detail)) {
           message = detail
-            .map((err: any) => err.msg || JSON.stringify(err))
+            .map((err: { msg?: string } | unknown) =>
+              typeof err === 'object' && err !== null && 'msg' in err
+                ? err.msg
+                : JSON.stringify(err)
+            )
             .join(', ');
         }
         // If detail is a string
@@ -89,8 +94,9 @@ const Register: React.FC = () => {
           message = detail;
         }
         // If detail is an object
-        else if (typeof detail === 'object') {
-          message = detail.msg || JSON.stringify(detail);
+        else if (typeof detail === 'object' && detail !== null) {
+          const detailObj = detail as { msg?: string };
+          message = detailObj.msg || JSON.stringify(detail);
         }
       }
 

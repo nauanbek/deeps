@@ -105,8 +105,12 @@ export const AgentToolsModal: React.FC<AgentToolsModalProps> = ({ isOpen, onClos
       showSuccess('Agent tools updated successfully');
       setHasChanges(false);
       onClose();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to update agent tools';
+    } catch (error: unknown) {
+      let errorMessage = 'Failed to update agent tools';
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string } } };
+        errorMessage = axiosError.response?.data?.detail || errorMessage;
+      }
       showError(errorMessage);
     }
   };

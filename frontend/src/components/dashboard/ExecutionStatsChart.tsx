@@ -61,7 +61,7 @@ export const ExecutionStatsChart: React.FC<ExecutionStatsChartProps> = ({ stats 
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={(props: any) => {
+              label={(props: { percent?: number; name?: string }) => {
                 const percent = props.percent || 0;
                 return percent > 0 ? `${props.name}: ${(percent * 100).toFixed(0)}%` : '';
               }}
