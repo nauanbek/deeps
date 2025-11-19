@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, case, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.cache import cache_result
 from models.agent import Agent
 from models.execution import Execution
 
@@ -14,6 +15,7 @@ from models.execution import Execution
 class AnalyticsService:
     """Service for managing advanced analytics operations."""
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_execution_time_series(
         self,
         db: AsyncSession,
@@ -134,6 +136,7 @@ class AnalyticsService:
         else:
             return dt
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_agent_usage_rankings(
         self,
         db: AsyncSession,
@@ -231,6 +234,7 @@ class AnalyticsService:
         rankings.sort(key=lambda x: x["execution_count"], reverse=True)
         return rankings[:limit]
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_token_usage_breakdown(
         self,
         db: AsyncSession,
@@ -335,6 +339,7 @@ class AnalyticsService:
             "breakdown": breakdown,
         }
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_error_analysis(
         self,
         db: AsyncSession,
@@ -411,6 +416,7 @@ class AnalyticsService:
         error_list.sort(key=lambda x: x["count"], reverse=True)
         return error_list[:limit]
 
+    @cache_result(ttl=300)  # 5 minutes cache
     async def get_agent_performance_metrics(
         self,
         db: AsyncSession,
@@ -569,6 +575,7 @@ class AnalyticsService:
 
         return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
 
+    @cache_result(ttl=60)  # 1 minute cache (more dynamic)
     async def get_system_performance_metrics(
         self,
         db: AsyncSession,
@@ -735,6 +742,7 @@ class AnalyticsService:
             "recommendations": recommendations,
         }
 
+    @cache_result(ttl=600)  # 10 minutes cache (projections are expensive)
     async def get_cost_projections(
         self,
         db: AsyncSession,
