@@ -25,6 +25,8 @@ class AnalyticsService:
         """
         Generate time-series data for execution metrics.
 
+        Uses database-level aggregations to avoid loading 100k+ records into memory.
+
         Args:
             db: Database session
             start_date: Start of date range
@@ -35,73 +37,74 @@ class AnalyticsService:
         Returns:
             List of time-series data points with execution metrics
         """
-        # Build base query
-        query = select(Execution).where(
-            and_(
-                Execution.started_at >= start_date,
-                Execution.started_at <= end_date,
-                Execution.started_at.isnot(None),
+        # Map interval to PostgreSQL date_trunc precision
+        trunc_precision = {
+            "hour": "hour",
+            "day": "day",
+            "week": "week",
+            "month": "month",
+        }.get(interval, "day")
+
+        # Build aggregated query (fixes memory issue - aggregates at DB level)
+        # Returns ~100 rows instead of 100,000+ execution objects
+        query = (
+            select(
+                func.date_trunc(trunc_precision, Execution.started_at).label('bucket'),
+                func.count().label('total'),
+                func.sum(
+                    case((Execution.status == "completed", 1), else_=0)
+                ).label('successful'),
+                func.sum(
+                    case((Execution.status == "failed", 1), else_=0)
+                ).label('failed'),
+                func.sum(
+                    case((Execution.status == "cancelled", 1), else_=0)
+                ).label('cancelled'),
+                func.avg(
+                    case(
+                        (
+                            and_(
+                                Execution.status == "completed",
+                                Execution.completed_at.isnot(None),
+                                Execution.started_at.isnot(None)
+                            ),
+                            func.extract('epoch', Execution.completed_at - Execution.started_at)
+                        ),
+                        else_=None
+                    )
+                ).label('avg_duration'),
+                func.sum(Execution.total_tokens).label('total_tokens'),
+                func.sum(Execution.estimated_cost).label('estimated_cost'),
             )
+            .where(
+                and_(
+                    Execution.started_at >= start_date,
+                    Execution.started_at <= end_date,
+                    Execution.started_at.isnot(None),
+                )
+            )
+            .group_by('bucket')
+            .order_by('bucket')
         )
 
         if agent_id:
             query = query.where(Execution.agent_id == agent_id)
 
         result = await db.execute(query)
-        executions = result.scalars().all()
+        rows = result.all()
 
-        if not executions:
-            return []
-
-        # Group executions by time bucket
-        buckets: Dict[datetime, List[Execution]] = {}
-        for execution in executions:
-            bucket_key = self._get_time_bucket(execution.started_at, interval)
-            if bucket_key not in buckets:
-                buckets[bucket_key] = []
-            buckets[bucket_key].append(execution)
-
-        # Build time-series data
+        # Build time-series data from aggregated results
         time_series_data = []
-        for timestamp in sorted(buckets.keys()):
-            bucket_executions = buckets[timestamp]
-
-            # Count by status
-            total = len(bucket_executions)
-            successful = sum(1 for e in bucket_executions if e.status == "completed")
-            failed = sum(1 for e in bucket_executions if e.status == "failed")
-            cancelled = sum(1 for e in bucket_executions if e.status == "cancelled")
-
-            # Calculate average duration (only for completed executions)
-            durations = [
-                (e.completed_at - e.started_at).total_seconds()
-                for e in bucket_executions
-                if e.status == "completed"
-                and e.completed_at
-                and e.started_at
-            ]
-            avg_duration = sum(durations) / len(durations) if durations else 0.0
-
-            # Sum tokens
-            total_tokens = sum(
-                e.total_tokens or 0 for e in bucket_executions
-            )
-
-            # Sum costs
-            total_cost = sum(
-                float(e.estimated_cost or Decimal("0.0"))
-                for e in bucket_executions
-            )
-
+        for row in rows:
             time_series_data.append({
-                "timestamp": timestamp,
-                "total_executions": total,
-                "successful": successful,
-                "failed": failed,
-                "cancelled": cancelled,
-                "avg_duration_seconds": avg_duration,
-                "total_tokens": total_tokens,
-                "estimated_cost": total_cost,
+                "timestamp": row.bucket,
+                "total_executions": row.total or 0,
+                "successful": row.successful or 0,
+                "failed": row.failed or 0,
+                "cancelled": row.cancelled or 0,
+                "avg_duration_seconds": float(row.avg_duration or 0.0),
+                "total_tokens": row.total_tokens or 0,
+                "estimated_cost": float(row.estimated_cost or Decimal("0.0")),
             })
 
         return time_series_data
