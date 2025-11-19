@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import get_settings
 from core.database import get_db
-from core.dependencies import get_current_active_user
+from core.dependencies import get_current_active_user, get_current_admin_user
 from core.security import create_access_token
 from models.user import User
 from schemas.auth import (
@@ -192,20 +192,23 @@ async def get_lockout_status(
 @router.post("/unlock-account/{username}", status_code=status.HTTP_200_OK)
 async def unlock_account(
     username: str,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_admin_user),
 ):
     """
-    Manually unlock a locked account (admin function).
+    Manually unlock a locked account (admin-only function).
 
     Clears both the lockout flag and failed attempts counter.
-    Requires authentication. In production, this should be restricted to admin users.
+    **Requires admin privileges.** Non-admin users will receive 403 Forbidden.
 
     Args:
         username: Username to unlock
-        current_user: Current authenticated user (should be admin)
+        current_user: Current authenticated admin user
 
     Returns:
         Success message indicating if account was unlocked
+
+    Raises:
+        HTTPException: 403 if user is not an admin
 
     Example:
         POST /api/v1/auth/unlock-account/johndoe

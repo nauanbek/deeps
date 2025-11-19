@@ -62,6 +62,9 @@ class User(Base):
     # Soft delete support
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False, index=True)
 
+    # Authorization
+    is_admin: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
+
     # Relationships
     agents: Mapped[list["Agent"]] = relationship(
         "Agent",
