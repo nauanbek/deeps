@@ -35,12 +35,14 @@ if settings.ENVIRONMENT == "production" and "postgresql" in DATABASE_URL.lower()
         )
 
 # Create async engine with connection pooling
+# Increased pool size for production concurrency (Problem #12)
 engine = create_async_engine(
     DATABASE_URL,
     echo=(settings.ENVIRONMENT == "development"),  # Logging only in development
     pool_pre_ping=True,  # Verify connections before using them
-    pool_size=10,
-    max_overflow=20,
+    pool_size=20,  # Increased from 10 for concurrent load
+    max_overflow=40,  # Increased from 20 for burst traffic
+    pool_recycle=3600,  # Recycle connections after 1 hour to prevent stale connections
     connect_args=connect_args,
 )
 
