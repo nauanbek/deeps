@@ -7,6 +7,7 @@ import React, { useState, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TemplateLibrary } from '../components/templates/TemplateLibrary';
 import { Template, CreateAgentFromTemplateRequest } from '../types/template';
+import { PageLayout } from '../components/common/PageLayout';
 import PageErrorBoundary from '../components/common/PageErrorBoundary';
 import ModalErrorBoundary from '../components/common/ModalErrorBoundary';
 import {
@@ -113,8 +114,7 @@ export const Templates: React.FC = () => {
 
   return (
     <PageErrorBoundary>
-      <main className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <PageLayout className="bg-surface-50">
         <TemplateLibrary
           onUseTemplate={handleUseTemplate}
           onViewDetails={handleViewDetails}
@@ -122,70 +122,69 @@ export const Templates: React.FC = () => {
           currentUserId={1} // Note: Integrate with auth context for multi-user support
         />
 
-          {/* Template Detail Modal */}
-          {isDetailModalOpen && selectedTemplate && (
-            <Suspense fallback={null}>
-              <ModalErrorBoundary
+        {/* Template Detail Modal */}
+        {isDetailModalOpen && selectedTemplate && (
+          <Suspense fallback={null}>
+            <ModalErrorBoundary
+              onClose={() => {
+                setIsDetailModalOpen(false);
+                setSelectedTemplate(null);
+              }}
+            >
+              <TemplateDetailModal
+                template={selectedTemplate!}
+                isOpen={isDetailModalOpen}
                 onClose={() => {
                   setIsDetailModalOpen(false);
                   setSelectedTemplate(null);
                 }}
-              >
-                <TemplateDetailModal
-                  template={selectedTemplate!}
-                  isOpen={isDetailModalOpen}
-                  onClose={() => {
-                    setIsDetailModalOpen(false);
-                    setSelectedTemplate(null);
-                  }}
-                  onUseTemplate={handleUseTemplate}
-                  onEditTemplate={handleEditTemplate}
-                  onDeleteTemplate={handleDeleteTemplate}
-                  onExportTemplate={handleExportTemplate}
-                  currentUserId={1} // TODO: Get from auth context
-                />
-              </ModalErrorBoundary>
-            </Suspense>
-          )}
+                onUseTemplate={handleUseTemplate}
+                onEditTemplate={handleEditTemplate}
+                onDeleteTemplate={handleDeleteTemplate}
+                onExportTemplate={handleExportTemplate}
+                currentUserId={1} // TODO: Get from auth context
+              />
+            </ModalErrorBoundary>
+          </Suspense>
+        )}
 
-          {/* Create Agent Modal */}
-          {isCreateAgentModalOpen && (
-            <Suspense fallback={null}>
-              <ModalErrorBoundary
+        {/* Create Agent Modal */}
+        {isCreateAgentModalOpen && (
+          <Suspense fallback={null}>
+            <ModalErrorBoundary
+              onClose={() => {
+                setIsCreateAgentModalOpen(false);
+                setSelectedTemplate(null);
+              }}
+            >
+              <CreateAgentFromTemplateModal
+                template={selectedTemplate}
+                isOpen={isCreateAgentModalOpen}
                 onClose={() => {
                   setIsCreateAgentModalOpen(false);
                   setSelectedTemplate(null);
                 }}
-              >
-                <CreateAgentFromTemplateModal
-                  template={selectedTemplate}
-                  isOpen={isCreateAgentModalOpen}
-                  onClose={() => {
-                    setIsCreateAgentModalOpen(false);
-                    setSelectedTemplate(null);
-                  }}
-                  onSubmit={handleCreateAgent}
-                  isLoading={createAgentMutation.isPending}
-                />
-              </ModalErrorBoundary>
-            </Suspense>
-          )}
+                onSubmit={handleCreateAgent}
+                isLoading={createAgentMutation.isPending}
+              />
+            </ModalErrorBoundary>
+          </Suspense>
+        )}
 
-          {/* Import Template Modal */}
-          {isImportModalOpen && (
-            <Suspense fallback={null}>
-              <ModalErrorBoundary onClose={() => setIsImportModalOpen(false)}>
-                <ImportTemplateModal
-                  isOpen={isImportModalOpen}
-                  onClose={() => setIsImportModalOpen(false)}
-                  onImport={handleImportTemplate}
-                  isLoading={importTemplateMutation.isPending}
-                />
-              </ModalErrorBoundary>
-            </Suspense>
-          )}
-        </div>
-      </main>
+        {/* Import Template Modal */}
+        {isImportModalOpen && (
+          <Suspense fallback={null}>
+            <ModalErrorBoundary onClose={() => setIsImportModalOpen(false)}>
+              <ImportTemplateModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleImportTemplate}
+                isLoading={importTemplateMutation.isPending}
+              />
+            </ModalErrorBoundary>
+          </Suspense>
+        )}
+      </PageLayout>
     </PageErrorBoundary>
   );
 };

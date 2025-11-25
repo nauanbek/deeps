@@ -1,6 +1,17 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useLocation } from 'react-router-dom';
+import clsx from 'clsx';
+import {
+  ArrowPathIcon,
+  FunnelIcon,
+  PlayCircleIcon,
+} from '@heroicons/react/24/outline';
 import { Card, CardHeader } from '../components/common/Card';
+import { Button } from '../components/common/Button';
+import { Badge } from '../components/common/Badge';
+import { Select } from '../components/common/Select';
+import { PageLayout, PageHeader } from '../components/common/PageLayout';
+import { EmptyState } from '../components/common/EmptyState';
 import { ExecutionTable } from '../components/executions/ExecutionTable';
 import PageErrorBoundary from '../components/common/PageErrorBoundary';
 import ModalErrorBoundary from '../components/common/ModalErrorBoundary';
@@ -10,6 +21,15 @@ import type { ExecutionStatus } from '../types/execution';
 // Lazy load modal (only shown on user interaction)
 const ExecutionDetailsModal = lazy(() => import('../components/executions/ExecutionDetailsModal').then(m => ({ default: m.ExecutionDetailsModal })));
 
+const statusOptions = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'running', label: 'Running' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
 export const ExecutionMonitor: React.FC = () => {
   const location = useLocation();
   const [statusFilter, setStatusFilter] = useState<ExecutionStatus | 'all'>('all');
@@ -18,7 +38,7 @@ export const ExecutionMonitor: React.FC = () => {
   const cancelExecution = useCancelExecution();
 
   // Fetch executions with optional status filter
-  const { data: executions, isLoading, refetch } = useExecutions({
+  const { data: executions, isLoading, refetch, isFetching } = useExecutions({
     status: statusFilter !== 'all' ? statusFilter : undefined,
     limit: 100,
   });
@@ -32,52 +52,20 @@ export const ExecutionMonitor: React.FC = () => {
     }
   }, [location.search]);
 
-  // === AUTO-REFRESH POLLING FOR RUNNING EXECUTIONS ===
-  // Implements adaptive polling: only refresh when there are active executions.
-  //
-  // Problem: We need near-real-time updates for execution status, but:
-  //   - WebSocket: Complex, requires connection management
-  //   - Always polling: Wastes bandwidth when no active executions
-  //
-  // Solution: Conditional polling that activates only when needed
-  //
-  // Polling lifecycle:
-  //   1. Check if any executions have status='running'
-  //   2. If yes: Start 5-second interval polling
-  //   3. If no: Stop interval (cleanup function)
-  //   4. Re-evaluate when executions array changes
-  //
-  // Example timeline:
-  //   T=0s: User loads page, no running executions → No polling
-  //   T=10s: User starts execution → hasRunningExecutions=true → Start polling
-  //   T=15s, 20s, 25s: Refetch every 5 seconds
-  //   T=30s: Execution completes → hasRunningExecutions=false → Stop polling
-  //
-  // Benefits:
-  //   - Reduced server load (only poll when necessary)
-  //   - Battery friendly (no unnecessary background work)
-  //   - Still provides responsive UI for active executions
-  // === END POLLING PATTERN ===
+  // Auto-refresh polling for running executions
   useEffect(() => {
-    // Check if ANY execution in the list has status='running'
-    // Array.some() returns true if at least one element matches the condition
     const hasRunningExecutions = executions?.some(
       (exec) => exec.status === 'running'
     );
 
-    // Only start polling if there are running executions
     if (hasRunningExecutions) {
-      // Set up interval to refetch every 5000ms (5 seconds)
       const interval = setInterval(() => {
-        refetch();  // TanStack Query refetch function
+        refetch();
       }, 5000);
 
-      // Cleanup function: Clear interval when effect re-runs or component unmounts
-      // This prevents memory leaks from abandoned intervals
       return () => clearInterval(interval);
     }
-    // If no running executions, don't set up interval (implicitly return undefined)
-  }, [executions, refetch]);  // Re-run when executions data or refetch function changes
+  }, [executions, refetch]);
 
   const handleViewDetails = (id: number) => {
     setSelectedExecutionId(id);
@@ -99,69 +87,97 @@ export const ExecutionMonitor: React.FC = () => {
     window.history.replaceState({}, '', `${location.pathname}?${params}`);
   };
 
+  // Count running executions for status indicator
+  const runningCount = executions?.filter(e => e.status === 'running').length || 0;
+
   return (
     <PageErrorBoundary>
-      <main className="space-y-6">
+      <PageLayout>
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Execution Monitor</h1>
-          <p className="text-gray-600 mt-2">
-            Track and monitor agent executions in real-time
-          </p>
+        <PageHeader
+          title="Execution Monitor"
+          subtitle="Track and monitor agent executions in real-time"
+          action={
+            <div className="flex items-center gap-3">
+              {runningCount > 0 && (
+                <Badge variant="success" className="animate-pulse">
+                  {runningCount} running
+                </Badge>
+              )}
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => refetch()}
+                isLoading={isFetching}
+                leftIcon={<ArrowPathIcon className={clsx('w-4 h-4', isFetching && 'animate-spin')} />}
+              >
+                Refresh
+              </Button>
+            </div>
+          }
+        />
+
+        {/* Filters */}
+        <div className="mb-6">
+          <Card className="p-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2 text-surface-600">
+                <FunnelIcon className="w-5 h-5" />
+                <span className="text-sm font-medium">Filters</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as ExecutionStatus | 'all')}
+                  options={statusOptions}
+                  className="w-40"
+                />
+              </div>
+
+              {statusFilter !== 'all' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setStatusFilter('all')}
+                >
+                  Clear filters
+                </Button>
+              )}
+
+              <div className="sm:ml-auto text-sm text-surface-500">
+                {executions?.length || 0} executions
+              </div>
+            </div>
+          </Card>
         </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div>
-          <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">
-            Filter by Status
-          </label>
-          <select
-            id="status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as ExecutionStatus | 'all')}
-            className="px-3 py-2 border-gray-300 rounded-md shadow-sm focus-visible:ring-primary-500 focus-visible:border-primary-500"
-          >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="running">Running</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-
-        <div className="ml-auto">
-          <button
-            onClick={() => refetch()}
-            className="px-4 py-2 border-gray-300 text-gray-700 rounded hover:bg-gray-50 flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        {/* Executions Table */}
+        <Card>
+          <CardHeader
+            title="Executions"
+            subtitle="View execution history and live status"
+          />
+          {executions && executions.length === 0 && !isLoading ? (
+            <div className="p-8">
+              <EmptyState
+                variant="default"
+                icon={<PlayCircleIcon className="w-12 h-12" />}
+                title="No executions yet"
+                description={statusFilter !== 'all'
+                  ? `No ${statusFilter} executions found`
+                  : "Run an agent to see executions here"}
               />
-            </svg>
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Executions Table */}
-      <Card>
-        <CardHeader
-          title="Executions"
-          subtitle={`${executions?.length || 0} executions`}
-        />
-        <ExecutionTable
-          executions={executions || []}
-          onViewDetails={handleViewDetails}
-          onCancel={handleCancel}
-          isLoading={isLoading}
-        />
-      </Card>
+            </div>
+          ) : (
+            <ExecutionTable
+              executions={executions || []}
+              onViewDetails={handleViewDetails}
+              onCancel={handleCancel}
+              isLoading={isLoading}
+            />
+          )}
+        </Card>
 
         {/* Execution Details Modal with WebSocket */}
         {selectedExecutionId && (
@@ -174,7 +190,7 @@ export const ExecutionMonitor: React.FC = () => {
             </ModalErrorBoundary>
           </Suspense>
         )}
-      </main>
+      </PageLayout>
     </PageErrorBoundary>
   );
 };

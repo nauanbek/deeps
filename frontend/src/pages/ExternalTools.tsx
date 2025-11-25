@@ -10,18 +10,25 @@
  */
 
 import React, { useState, Suspense, lazy } from 'react';
-import PageErrorBoundary from '../components/common/PageErrorBoundary';
-import ModalErrorBoundary from '../components/common/ModalErrorBoundary';
 import {
   PlusIcon,
-  MagnifyingGlassIcon,
-  FunnelIcon,
   ChartBarIcon,
+  ServerStackIcon,
+  FunnelIcon,
 } from '@heroicons/react/24/outline';
+import PageErrorBoundary from '../components/common/PageErrorBoundary';
+import ModalErrorBoundary from '../components/common/ModalErrorBoundary';
+import { PageLayout, PageHeader } from '../components/common/PageLayout';
+import { Card } from '../components/common/Card';
+import { Button } from '../components/common/Button';
+import { Badge } from '../components/common/Badge';
+import { Tabs } from '../components/common/Tabs';
+import { SearchInput } from '../components/common/SearchInput';
+import { Select } from '../components/common/Select';
+import { EmptyState } from '../components/common/EmptyState';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { useExternalTools, useToolCatalog, useDeleteExternalTool } from '../hooks/useExternalTools';
 import { useToast } from '../hooks/useToast';
-import { Button } from '../components/common/Button';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import type { ExternalToolConfig, ExternalToolType } from '../types/externalTool';
 
 // Lazy load modals and components
@@ -33,6 +40,14 @@ const ToolCatalogCard = lazy(() => import('../components/externalTools/ToolCatal
 const DeleteConfirmModal = lazy(() => import('../components/common/DeleteConfirmModal'));
 
 type ViewMode = 'catalog' | 'configured';
+
+const toolTypeOptions = [
+  { value: '', label: 'All Tool Types' },
+  { value: 'postgresql', label: 'PostgreSQL' },
+  { value: 'gitlab', label: 'GitLab' },
+  { value: 'elasticsearch', label: 'Elasticsearch' },
+  { value: 'http', label: 'HTTP Client' },
+];
 
 export const ExternalTools: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('configured');
@@ -104,16 +119,6 @@ export const ExternalTools: React.FC = () => {
     }
   };
 
-  // Handle search input change
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
-
-  // Handle type filter change
-  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedType(e.target.value as ExternalToolType | '');
-  };
-
   // Clear filters
   const clearFilters = () => {
     setSearchQuery('');
@@ -122,139 +127,124 @@ export const ExternalTools: React.FC = () => {
 
   const hasActiveFilters = searchQuery || selectedType;
 
+  const tabs = [
+    {
+      id: 'configured',
+      label: (
+        <span className="flex items-center gap-2">
+          My Tools
+          <Badge variant="neutral" size="sm">{tools.length}</Badge>
+        </span>
+      ),
+    },
+    {
+      id: 'catalog',
+      label: (
+        <span className="flex items-center gap-2">
+          Marketplace
+          <Badge variant="primary" size="sm">{catalog.length}</Badge>
+        </span>
+      ),
+    },
+  ];
+
   return (
     <PageErrorBoundary>
-      <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">External Tools</h1>
-              <p className="mt-2 text-sm text-gray-600">
-                Connect your agents to PostgreSQL, GitLab, Elasticsearch, and HTTP APIs
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
+      <PageLayout>
+        {/* Header */}
+        <PageHeader
+          title="External Tools"
+          subtitle="Connect your agents to PostgreSQL, GitLab, Elasticsearch, and HTTP APIs"
+          action={
+            <div className="flex items-center gap-3">
               <Button
                 variant="secondary"
+                size="md"
                 onClick={() => {/* Feature: Link to external tools analytics page */}}
                 disabled
-                className="flex items-center space-x-2 opacity-50 cursor-not-allowed"
+                leftIcon={<ChartBarIcon className="w-4 h-4" />}
               >
-                <ChartBarIcon className="w-5 h-5" />
-                <span>Analytics</span>
+                Analytics
               </Button>
               <Button
+                variant="primary"
+                size="md"
                 onClick={() => {
                   setSelectedCatalogType(null);
                   setIsCreateModalOpen(true);
                 }}
-                className="flex items-center space-x-2"
+                leftIcon={<PlusIcon className="w-4 h-4" />}
               >
-                <PlusIcon className="w-5 h-5" />
-                <span>Configure Tool</span>
+                Configure Tool
               </Button>
             </div>
-          </div>
+          }
+        />
 
-          {/* View Mode Tabs */}
-          <div className="mt-6 border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setViewMode('configured')}
-                className={`${
-                  viewMode === 'configured'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm transition-colors`}
-              >
-                My Tools ({tools.length})
-              </button>
-              <button
-                onClick={() => setViewMode('catalog')}
-                className={`${
-                  viewMode === 'catalog'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm transition-colors`}
-              >
-                Marketplace ({catalog.length})
-              </button>
-            </nav>
-          </div>
+        {/* View Mode Tabs */}
+        <div className="mb-6">
+          <Tabs
+            tabs={tabs}
+            activeTab={viewMode}
+            onChange={(id) => setViewMode(id as ViewMode)}
+            variant="underline"
+          />
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Filters (only for configured tools view) */}
         {viewMode === 'configured' && (
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-            <div className="flex items-center space-x-4">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <label htmlFor="external-tool-search" className="sr-only">
-                  Search external tools
-                </label>
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" aria-hidden="true" />
-                <input
-                  id="external-tool-search"
-                  type="search"
-                  placeholder="Search configured tools..."
+          <Card className="p-4 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2 text-surface-600">
+                <FunnelIcon className="w-5 h-5" />
+                <span className="text-sm font-medium">Filters</span>
+              </div>
+
+              <div className="flex-1 max-w-md">
+                <SearchInput
                   value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  onChange={setSearchQuery}
+                  placeholder="Search configured tools..."
                 />
               </div>
 
-              {/* Type Filter */}
-              <div className="relative">
-                <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                <select
-                  value={selectedType}
-                  onChange={handleTypeChange}
-                  className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none cursor-pointer min-w-[180px]"
-                >
-                  <option value="">All Tool Types</option>
-                  <option value="postgresql">PostgreSQL</option>
-                  <option value="gitlab">GitLab</option>
-                  <option value="elasticsearch">Elasticsearch</option>
-                  <option value="http">HTTP Client</option>
-                </select>
-              </div>
+              <Select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value as ExternalToolType | '')}
+                options={toolTypeOptions}
+                className="w-44"
+              />
 
-              {/* Clear Filters */}
               {hasActiveFilters && (
-                <Button variant="secondary" onClick={clearFilters} size="sm">
-                  Clear
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear filters
                 </Button>
               )}
             </div>
 
             {/* Active Filters Display */}
             {hasActiveFilters && (
-              <div className="mt-3 flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Active filters:</span>
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-sm text-surface-500">Active:</span>
                 {searchQuery && (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary-100 text-primary-800">
+                  <Badge variant="primary" size="sm">
                     Search: {searchQuery}
-                  </span>
+                  </Badge>
                 )}
                 {selectedType && (
-                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary-100 text-primary-800">
+                  <Badge variant="primary" size="sm">
                     Type: {selectedType}
-                  </span>
+                  </Badge>
                 )}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {/* Error State */}
         {isToolsError && viewMode === 'configured' && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-red-800">
+          <div className="bg-error-50 border border-error-200 rounded-xl p-4 mb-6">
+            <p className="text-sm text-error-700">
               Failed to load tools:{' '}
               {toolsError instanceof Error ? toolsError.message : 'Unknown error'}
             </p>
@@ -272,21 +262,21 @@ export const ExternalTools: React.FC = () => {
         {!isLoadingTools && viewMode === 'configured' && (
           <>
             {filteredTools.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-                <p className="text-gray-500 mb-4">
-                  {hasActiveFilters
-                    ? 'No tools match your filters'
-                    : 'No tools configured yet'}
-                </p>
-                <Button
-                  onClick={() => {
+              <EmptyState
+                variant="default"
+                icon={<ServerStackIcon className="w-12 h-12" />}
+                title={hasActiveFilters ? 'No tools match your filters' : 'No tools configured yet'}
+                description={hasActiveFilters
+                  ? 'Try adjusting your search or filter criteria'
+                  : 'Connect your first external tool to get started'}
+                action={{
+                  label: 'Configure Your First Tool',
+                  onClick: () => {
                     setSelectedCatalogType(null);
                     setIsCreateModalOpen(true);
-                  }}
-                >
-                  Configure Your First Tool
-                </Button>
-              </div>
+                  },
+                }}
+              />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Suspense fallback={<LoadingSpinner />}>
@@ -305,7 +295,7 @@ export const ExternalTools: React.FC = () => {
             {/* Results Count */}
             {filteredTools.length > 0 && (
               <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-surface-500">
                   Showing {filteredTools.length} of {tools.length} configured tool
                   {tools.length !== 1 ? 's' : ''}
                 </p>
@@ -328,9 +318,8 @@ export const ExternalTools: React.FC = () => {
             </Suspense>
           </div>
         )}
-      </div>
 
-      {/* Create/Edit Tool Modal */}
+        {/* Create/Edit Tool Modal */}
         {(isCreateModalOpen || editingTool) && (
           <Suspense fallback={null}>
             <ModalErrorBoundary
@@ -371,7 +360,7 @@ export const ExternalTools: React.FC = () => {
             </ModalErrorBoundary>
           </Suspense>
         )}
-      </main>
+      </PageLayout>
     </PageErrorBoundary>
   );
 };

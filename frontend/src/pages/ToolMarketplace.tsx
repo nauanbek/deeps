@@ -1,20 +1,37 @@
 /**
- * ToolMarketplace page - Main page for managing tools
+ * ToolMarketplace page - Main page for managing custom tools
  */
 
 import React, { useState, Suspense, lazy } from 'react';
-import { PlusIcon, MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon,
+  WrenchScrewdriverIcon,
+  FunnelIcon,
+} from '@heroicons/react/24/outline';
 import PageErrorBoundary from '../components/common/PageErrorBoundary';
 import ModalErrorBoundary from '../components/common/ModalErrorBoundary';
+import { PageLayout, PageHeader } from '../components/common/PageLayout';
+import { Card } from '../components/common/Card';
+import { Button } from '../components/common/Button';
+import { Badge } from '../components/common/Badge';
+import { SearchInput } from '../components/common/SearchInput';
+import { Select } from '../components/common/Select';
+import { EmptyState } from '../components/common/EmptyState';
 import { useTools, useDeleteTool } from '../hooks/useTools';
 import { useToast } from '../hooks/useToast';
 import ToolList from '../components/tools/ToolList';
-import { Button } from '../components/common/Button';
 import type { Tool } from '../types/tool';
 
 // Lazy load modals (only shown on user interaction)
 const ToolFormModal = lazy(() => import('../components/tools/ToolFormModal'));
 const DeleteConfirmModal = lazy(() => import('../components/common/DeleteConfirmModal'));
+
+const toolTypeOptions = [
+  { value: '', label: 'All Types' },
+  { value: 'builtin', label: 'Built-in' },
+  { value: 'custom', label: 'Custom' },
+  { value: 'langgraph', label: 'LangGraph' },
+];
 
 export const ToolMarketplace: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,16 +77,6 @@ export const ToolMarketplace: React.FC = () => {
     }
   };
 
-  // Handle search input change
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
-
-  // Handle type filter change
-  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedType(e.target.value);
-  };
-
   // Clear filters
   const clearFilters = () => {
     setSearchQuery('');
@@ -80,115 +87,111 @@ export const ToolMarketplace: React.FC = () => {
 
   return (
     <PageErrorBoundary>
-      <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Tool Marketplace</h1>
-              <p className="mt-2 text-sm text-gray-600">
-                Create and manage tools for your AI agents
-              </p>
-            </div>
+      <PageLayout>
+        {/* Header */}
+        <PageHeader
+          title="Custom Tools"
+          subtitle="Create and manage tools for your AI agents"
+          action={
             <Button
+              variant="primary"
+              size="md"
               onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center space-x-2"
+              leftIcon={<PlusIcon className="w-4 h-4" />}
             >
-              <PlusIcon className="w-5 h-5" />
-              <span>Create Tool</span>
+              Create Tool
             </Button>
-          </div>
-        </div>
-      </div>
+          }
+        />
 
-      {/* Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-lg border-gray-200 p-4 mb-6">
-          <div className="flex items-center space-x-4">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <label htmlFor="tool-search" className="sr-only">
-                Search tools
-              </label>
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" aria-hidden="true" />
-              <input
-                id="tool-search"
-                type="search"
-                placeholder="Search tools by name..."
+        {/* Filters */}
+        <Card className="p-4 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex items-center gap-2 text-surface-600">
+              <FunnelIcon className="w-5 h-5" />
+              <span className="text-sm font-medium">Filters</span>
+            </div>
+
+            <div className="flex-1 max-w-md">
+              <SearchInput
                 value={searchQuery}
-                onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-2 border-gray-300 rounded-lg focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-primary-500"
+                onChange={setSearchQuery}
+                placeholder="Search tools by name..."
               />
             </div>
 
-            {/* Type Filter */}
-            <div className="relative">
-              <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={selectedType}
-                onChange={handleTypeChange}
-                className="pl-10 pr-8 py-2 border-gray-300 rounded-lg focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-primary-500 appearance-none cursor-pointer min-w-[160px]"
-              >
-                <option value="">All Types</option>
-                <option value="builtin">Built-in</option>
-                <option value="custom">Custom</option>
-                <option value="langgraph">LangGraph</option>
-              </select>
-            </div>
+            <Select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              options={toolTypeOptions}
+              className="w-36"
+            />
 
-            {/* Clear Filters */}
             {hasActiveFilters && (
-              <Button variant="secondary" onClick={clearFilters} size="sm">
-                Clear Filters
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear filters
               </Button>
             )}
           </div>
 
           {/* Active Filters Display */}
           {hasActiveFilters && (
-            <div className="mt-3 flex items-center space-x-2">
-              <span className="text-sm text-gray-500">Active filters:</span>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-sm text-surface-500">Active:</span>
               {searchQuery && (
-                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary-100 text-primary-800">
+                <Badge variant="primary" size="sm">
                   Search: {searchQuery}
-                </span>
+                </Badge>
               )}
               {selectedType && (
-                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary-100 text-primary-800">
+                <Badge variant="primary" size="sm">
                   Type: {selectedType}
-                </span>
+                </Badge>
               )}
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Error State */}
         {isError && (
-          <div className="bg-red-50 border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-red-800">
+          <div className="bg-error-50 border border-error-200 rounded-xl p-4 mb-6">
+            <p className="text-sm text-error-700">
               Failed to load tools: {error instanceof Error ? error.message : 'Unknown error'}
             </p>
           </div>
         )}
 
-        {/* Tool List */}
-        <ToolList
-          tools={tools}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          isLoading={isLoading}
-        />
+        {/* Tool List or Empty State */}
+        {!isLoading && tools.length === 0 ? (
+          <EmptyState
+            variant="default"
+            icon={<WrenchScrewdriverIcon className="w-12 h-12" />}
+            title={hasActiveFilters ? 'No tools match your filters' : 'No tools created yet'}
+            description={hasActiveFilters
+              ? 'Try adjusting your search or filter criteria'
+              : 'Create your first custom tool to extend your agents capabilities'}
+            action={{
+              label: 'Create Your First Tool',
+              onClick: () => setIsCreateModalOpen(true),
+            }}
+          />
+        ) : (
+          <ToolList
+            tools={tools}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            isLoading={isLoading}
+          />
+        )}
 
         {/* Results Count */}
         {!isLoading && tools.length > 0 && (
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-surface-500">
               Showing {tools.length} tool{tools.length !== 1 ? 's' : ''}
             </p>
           </div>
         )}
-      </div>
 
         {/* Create Tool Modal */}
         {isCreateModalOpen && (
@@ -232,7 +235,7 @@ export const ToolMarketplace: React.FC = () => {
             </ModalErrorBoundary>
           </Suspense>
         )}
-      </main>
+      </PageLayout>
     </PageErrorBoundary>
   );
 };

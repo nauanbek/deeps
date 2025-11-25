@@ -1,6 +1,7 @@
 import React, { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { NavLink } from 'react-router-dom';
+import clsx from 'clsx';
 import {
   HomeIcon,
   CpuChipIcon,
@@ -8,7 +9,9 @@ import {
   ChartBarIcon,
   WrenchIcon,
   DocumentDuplicateIcon,
+  ServerStackIcon,
   XMarkIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 interface MobileSidebarProps {
@@ -16,28 +19,46 @@ interface MobileSidebarProps {
   onClose: () => void;
 }
 
-interface NavItemProps {
+interface NavItem {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+}
+
+const navItems: NavItem[] = [
+  { to: '/', icon: HomeIcon, label: 'Dashboard' },
+  { to: '/agents', icon: CpuChipIcon, label: 'Agents' },
+  { to: '/templates', icon: DocumentDuplicateIcon, label: 'Templates' },
+  { to: '/tools', icon: WrenchIcon, label: 'Custom Tools' },
+  { to: '/external-tools', icon: ServerStackIcon, label: 'External Tools' },
+  { to: '/executions', icon: PlayCircleIcon, label: 'Executions' },
+  { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
+];
+
+interface NavItemComponentProps {
+  item: NavItem;
   onClick: () => void;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ to, icon: Icon, label, onClick }) => {
+const NavItemComponent: React.FC<NavItemComponentProps> = ({ item, onClick }) => {
+  const { to, icon: Icon, label } = item;
+
   return (
     <NavLink
       to={to}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+        clsx(
+          'group flex items-center gap-3 px-4 py-3 rounded-xl font-medium',
+          'transition-all duration-200',
           isActive
-            ? 'bg-primary-600 text-white'
-            : 'text-gray-700 hover:bg-gray-100'
-        }`
+            ? 'bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-lg shadow-primary-500/25'
+            : 'text-surface-600 hover:text-surface-900 hover:bg-surface-100'
+        )
       }
     >
-      <Icon className="w-5 h-5" />
-      <span className="font-medium">{label}</span>
+      <Icon className="w-5 h-5 flex-shrink-0" />
+      <span>{label}</span>
     </NavLink>
   );
 };
@@ -56,7 +77,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose })
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-900/80" />
+          <div className="fixed inset-0 bg-surface-900/60 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 flex">
@@ -84,27 +105,32 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose })
                 <div className="absolute left-full top-0 flex w-16 justify-center pt-5">
                   <button
                     type="button"
-                    className="-m-2.5 p-2.5"
+                    className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 transition-colors"
                     onClick={onClose}
                     aria-label="Close sidebar"
                   >
                     <span className="sr-only">Close sidebar</span>
-                    <XMarkIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                    <XMarkIcon className="h-6 w-6" aria-hidden="true" />
                   </button>
                 </div>
               </Transition.Child>
 
               {/* Sidebar content */}
-              <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
+              <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4 shadow-2xl">
                 {/* Logo */}
-                <div className="flex h-16 shrink-0 items-center pt-6">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-                      <CpuChipIcon className="w-6 h-6 text-white" />
+                <div className="flex h-20 shrink-0 items-center pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-11 h-11 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25">
+                        <SparklesIcon className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success-500 rounded-full border-2 border-white" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-gray-900">DeepAgents</h2>
-                      <p className="text-xs text-gray-500">Control Platform</p>
+                      <h2 className="text-lg font-bold text-surface-900 tracking-tight">
+                        DeepAgents
+                      </h2>
+                      <p className="text-xs text-surface-500">Control Platform</p>
                     </div>
                   </div>
                 </div>
@@ -113,33 +139,29 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose })
                 <nav className="flex flex-1 flex-col">
                   <ul role="list" className="flex flex-1 flex-col gap-y-7">
                     <li>
-                      <ul role="list" className="space-y-2">
-                        <li>
-                          <NavItem to="/" icon={HomeIcon} label="Dashboard" onClick={onClose} />
-                        </li>
-                        <li>
-                          <NavItem to="/agents" icon={CpuChipIcon} label="Agents" onClick={onClose} />
-                        </li>
-                        <li>
-                          <NavItem to="/templates" icon={DocumentDuplicateIcon} label="Templates" onClick={onClose} />
-                        </li>
-                        <li>
-                          <NavItem to="/tools" icon={WrenchIcon} label="Tools" onClick={onClose} />
-                        </li>
-                        <li>
-                          <NavItem to="/executions" icon={PlayCircleIcon} label="Executions" onClick={onClose} />
-                        </li>
-                        <li>
-                          <NavItem to="/analytics" icon={ChartBarIcon} label="Analytics" onClick={onClose} />
-                        </li>
+                      <ul role="list" className="space-y-1">
+                        {navItems.map((item) => (
+                          <li key={item.to}>
+                            <NavItemComponent item={item} onClick={onClose} />
+                          </li>
+                        ))}
                       </ul>
                     </li>
 
                     {/* Version info */}
-                    <li className="mt-auto border-t border-gray-200 pt-4">
-                      <div className="text-xs text-gray-500">
-                        <div>Version 0.1.0</div>
-                        <div className="mt-1">deepagents v0.2.5+</div>
+                    <li className="mt-auto">
+                      <div className="px-4 py-3 rounded-xl bg-gradient-to-r from-surface-50 to-surface-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-surface-200 flex items-center justify-center">
+                            <CpuChipIcon className="w-4 h-4 text-surface-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-surface-700">
+                              deepagents
+                            </p>
+                            <p className="text-xs text-surface-500">v0.2.5</p>
+                          </div>
+                        </div>
                       </div>
                     </li>
                   </ul>

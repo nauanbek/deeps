@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
 import { useAuth } from '../hooks/useAuth';
-import { LockClosedIcon, UserIcon } from '@heroicons/react/24/outline';
+import {
+  LockClosedIcon,
+  UserIcon,
+  ExclamationTriangleIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline';
 import { Input } from '../components/common/Input';
+import { Button } from '../components/common/Button';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -55,127 +62,186 @@ const Login: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
-    // Clear API error on input change
     if (apiError) {
       setApiError('');
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-primary-600 rounded-xl flex items-center justify-center">
-              <LockClosedIcon className="h-10 w-10 text-white" aria-hidden="true" />
-            </div>
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to DeepAgents
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Control Platform for AI Agent Management
-          </p>
+    <main className="min-h-screen flex">
+      {/* Left side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900">
+        {/* Background patterns */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl transform -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent-400 rounded-full blur-3xl transform translate-x-1/2 translate-y-1/2" />
         </div>
 
-        <div className="bg-white py-8 px-6 shadow-lg rounded-xl sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {apiError && (
-              <div className="rounded-md bg-red-50 p-4" role="alert">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-5 w-5 text-red-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-red-800">{apiError}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <Input
-              id="username"
-              name="username"
-              type="text"
-              label="Username"
-              autoComplete="username"
-              required
-              value={formData.username}
-              onChange={handleChange}
-              error={errors.username}
-              icon={<UserIcon className="h-5 w-5" />}
-              iconPosition="left"
-              placeholder="Enter your username"
-            />
-
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              label="Password"
-              autoComplete="current-password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              error={errors.password}
-              icon={<LockClosedIcon className="h-5 w-5" />}
-              iconPosition="left"
-              placeholder="Enter your password"
-            />
-
+        {/* Content */}
+        <div className="relative z-10 flex flex-col justify-center px-16 text-white">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-14 h-14 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+              <SparklesIcon className="w-8 h-8 text-white" />
+            </div>
             <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[48px]"
-              >
-                {isLoading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" aria-hidden="true"></div>
-                    Signing in...
-                  </div>
-                ) : (
-                  'Sign in'
-                )}
-              </button>
-            </div>
-          </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-t-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">New to DeepAgents?</span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <Link
-                to="/register"
-                className="w-full inline-flex justify-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 transition-colors min-h-[48px] items-center"
-              >
-                Create an account
-              </Link>
+              <h1 className="text-2xl font-bold">DeepAgents</h1>
+              <p className="text-white/60 text-sm">Control Platform</p>
             </div>
           </div>
+
+          <h2 className="text-4xl font-bold mb-4 leading-tight">
+            Enterprise AI Agent
+            <br />
+            Management Platform
+          </h2>
+          <p className="text-white/70 text-lg max-w-md">
+            Create, configure, and manage AI agents with a visual development environment.
+            Powered by deepagents framework.
+          </p>
+
+          {/* Features */}
+          <div className="mt-12 space-y-4">
+            {[
+              'Visual agent configuration',
+              'Real-time execution monitoring',
+              'External tools integration',
+              'Advanced analytics & insights',
+            ].map((feature) => (
+              <div key={feature} className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full bg-success-500/20 flex items-center justify-center">
+                  <svg className="w-3 h-3 text-success-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <span className="text-white/80">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right side - Login form */}
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 bg-surface-50">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex justify-center mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25">
+                <SparklesIcon className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-surface-900">DeepAgents</h1>
+                <p className="text-xs text-surface-500">Control Platform</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-surface-900 tracking-tight">
+              Welcome back
+            </h2>
+            <p className="mt-2 text-surface-500">
+              Sign in to your account to continue
+            </p>
+          </div>
+
+          {/* Form card */}
+          <div className="card p-8">
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              {/* API Error */}
+              {apiError && (
+                <div
+                  className={clsx(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl',
+                    'bg-error-50 border border-error-200 text-error-700'
+                  )}
+                  role="alert"
+                >
+                  <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
+                  <p className="text-sm font-medium">{apiError}</p>
+                </div>
+              )}
+
+              {/* Form fields */}
+              <div className="space-y-5">
+                <Input
+                  id="username"
+                  name="username"
+                  type="text"
+                  label="Username"
+                  autoComplete="username"
+                  required
+                  value={formData.username}
+                  onChange={handleChange}
+                  error={errors.username}
+                  icon={<UserIcon className="h-5 w-5" />}
+                  iconPosition="left"
+                  placeholder="Enter your username"
+                  inputSize="lg"
+                />
+
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  label="Password"
+                  autoComplete="current-password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  error={errors.password}
+                  icon={<LockClosedIcon className="h-5 w-5" />}
+                  iconPosition="left"
+                  placeholder="Enter your password"
+                  showPasswordToggle
+                  inputSize="lg"
+                />
+              </div>
+
+              {/* Submit button */}
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                fullWidth
+                isLoading={isLoading}
+              >
+                Sign in
+              </Button>
+            </form>
+
+            {/* Divider */}
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-surface-200" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="px-4 bg-white text-sm text-surface-500">
+                  New to DeepAgents?
+                </span>
+              </div>
+            </div>
+
+            {/* Register link */}
+            <Link to="/register">
+              <Button variant="secondary" size="lg" fullWidth>
+                Create an account
+              </Button>
+            </Link>
+          </div>
+
+          {/* Footer */}
+          <p className="mt-8 text-center text-sm text-surface-500">
+            By signing in, you agree to our Terms of Service and Privacy Policy
+          </p>
         </div>
       </div>
     </main>

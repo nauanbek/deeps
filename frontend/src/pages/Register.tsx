@@ -1,9 +1,28 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import clsx from 'clsx';
 import { useAuth } from '../hooks/useAuth';
-import { UserPlusIcon, UserIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import {
+  UserPlusIcon,
+  UserIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+  CheckIcon,
+  SparklesIcon,
+  CpuChipIcon,
+  ChartBarIcon,
+  ShieldCheckIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/24/outline';
 import { Input } from '../components/common/Input';
+import { Button } from '../components/common/Button';
 import { PasswordStrengthMeter } from '../components/common/PasswordStrengthMeter';
+
+const features = [
+  { icon: CpuChipIcon, text: 'Create and manage AI agents' },
+  { icon: ChartBarIcon, text: 'Real-time execution monitoring' },
+  { icon: ShieldCheckIcon, text: 'Enterprise-grade security' },
+];
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -118,151 +137,202 @@ const Register: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100 px-4 sm:px-6 lg:px-8 py-12">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-primary-600 rounded-xl flex items-center justify-center">
-              <UserPlusIcon className="h-10 w-10 text-white" aria-hidden="true" />
-            </div>
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Join DeepAgents Control Platform
-          </p>
+    <main className="min-h-screen flex">
+      {/* Left Panel - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-600 p-12 flex-col justify-between relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute bottom-0 right-0 w-80 h-80 bg-white rounded-full translate-x-1/3 translate-y-1/3" />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
         </div>
 
-        <div className="bg-white py-8 px-6 shadow-lg rounded-xl sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {apiError && (
-              <div className="rounded-md bg-red-50 p-4" role="alert">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-5 w-5 text-red-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-red-800">{apiError}</p>
+        {/* Content */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <SparklesIcon className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-2xl font-bold text-white">DeepAgents</span>
+          </div>
+          <p className="text-primary-100 text-lg">Control Platform</p>
+        </div>
+
+        <div className="relative z-10 space-y-8">
+          <div>
+            <h2 className="text-4xl font-bold text-white mb-4">
+              Join the future of AI automation
+            </h2>
+            <p className="text-primary-100 text-lg leading-relaxed">
+              Create an account to start building and managing your AI agents with enterprise-grade tools.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {features.map((feature, index) => (
+              <div key={index} className="flex items-center gap-4 text-white">
+                <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <feature.icon className="w-5 h-5" />
+                </div>
+                <span className="text-lg">{feature.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10">
+          <p className="text-primary-200 text-sm">
+            Trusted by leading organizations worldwide
+          </p>
+        </div>
+      </div>
+
+      {/* Right Panel - Registration Form */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 bg-surface-50">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
+            <div className="w-12 h-12 bg-gradient-to-br from-primary-600 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25">
+              <SparklesIcon className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-2xl font-bold text-surface-900">DeepAgents</span>
+          </div>
+
+          {/* Form Card */}
+          <div className="bg-white rounded-2xl shadow-card p-8 border border-surface-100">
+            <div className="text-center mb-8">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/25">
+                <UserPlusIcon className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-surface-900">Create your account</h1>
+              <p className="text-surface-500 mt-2">Join DeepAgents Control Platform</p>
+            </div>
+
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              {/* API Error Alert */}
+              {apiError && (
+                <div className="rounded-xl bg-error-50 border border-error-200 p-4" role="alert">
+                  <div className="flex items-start gap-3">
+                    <ExclamationCircleIcon className="w-5 h-5 text-error-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-error-700">{apiError}</p>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <Input
-              id="username"
-              name="username"
-              type="text"
-              label="Username"
-              autoComplete="username"
-              required
-              value={formData.username}
-              onChange={handleChange}
-              error={errors.username}
-              placeholder="Choose a username"
-              icon={<UserIcon className="h-5 w-5" />}
-              iconPosition="left"
-            />
-
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              label="Email address"
-              autoComplete="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              error={errors.email}
-              placeholder="you@example.com"
-              icon={<EnvelopeIcon className="h-5 w-5" />}
-              iconPosition="left"
-            />
-
-            <div>
               <Input
-                id="password"
-                name="password"
+                id="username"
+                name="username"
+                type="text"
+                label="Username"
+                autoComplete="username"
+                required
+                value={formData.username}
+                onChange={handleChange}
+                error={errors.username}
+                placeholder="Choose a username"
+                icon={<UserIcon className="w-5 h-5" />}
+                iconPosition="left"
+                inputSize="lg"
+              />
+
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                label="Email address"
+                autoComplete="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                error={errors.email}
+                placeholder="you@example.com"
+                icon={<EnvelopeIcon className="w-5 h-5" />}
+                iconPosition="left"
+                inputSize="lg"
+              />
+
+              <div>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  label="Password"
+                  autoComplete="new-password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  error={errors.password}
+                  placeholder="Create a strong password"
+                  icon={<LockClosedIcon className="w-5 h-5" />}
+                  iconPosition="left"
+                  inputSize="lg"
+                  showPasswordToggle
+                />
+                <div className="mt-2">
+                  <PasswordStrengthMeter password={formData.password} />
+                </div>
+              </div>
+
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
                 type="password"
-                label="Password"
+                label="Confirm password"
                 autoComplete="new-password"
                 required
-                value={formData.password}
+                value={formData.confirmPassword}
                 onChange={handleChange}
-                error={errors.password}
-                placeholder="Create a strong password"
-                icon={<LockClosedIcon className="h-5 w-5" />}
+                error={errors.confirmPassword}
+                placeholder="Re-enter your password"
+                icon={<LockClosedIcon className="w-5 h-5" />}
                 iconPosition="left"
+                inputSize="lg"
+                showPasswordToggle
+                success={formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword}
               />
-              <div className="mt-2">
-                <PasswordStrengthMeter password={formData.password} />
-              </div>
-            </div>
 
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              label="Confirm password"
-              autoComplete="new-password"
-              required
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              error={errors.confirmPassword}
-              placeholder="Re-enter your password"
-              icon={<LockClosedIcon className="h-5 w-5" />}
-              iconPosition="left"
-            />
-
-            <div>
-              <button
+              <Button
                 type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center min-h-[48px] py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                variant="primary"
+                size="lg"
+                fullWidth
+                isLoading={isLoading}
               >
-                {isLoading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" aria-hidden="true"></div>
-                    Creating account...
-                  </div>
-                ) : (
-                  'Create account'
-                )}
-              </button>
-            </div>
-          </form>
+                Create account
+              </Button>
+            </form>
 
-          <div className="mt-6">
-            <div className="relative">
+            {/* Divider */}
+            <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-t-gray-300" />
+                <div className="w-full border-t border-surface-200" />
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Already have an account?</span>
+              <div className="relative flex justify-center">
+                <span className="px-4 bg-white text-sm text-surface-500">
+                  Already have an account?
+                </span>
               </div>
             </div>
 
-            <div className="mt-6">
-              <Link
-                to="/login"
-                className="w-full inline-flex justify-center min-h-[48px] items-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 transition-colors"
-              >
+            {/* Sign In Link */}
+            <Link to="/login">
+              <Button variant="secondary" size="lg" fullWidth>
                 Sign in instead
-              </Link>
-            </div>
+              </Button>
+            </Link>
           </div>
+
+          {/* Footer */}
+          <p className="text-center text-sm text-surface-500 mt-6">
+            By creating an account, you agree to our{' '}
+            <a href="#" className="text-primary-600 hover:text-primary-700 font-medium">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="#" className="text-primary-600 hover:text-primary-700 font-medium">
+              Privacy Policy
+            </a>
+          </p>
         </div>
       </div>
     </main>

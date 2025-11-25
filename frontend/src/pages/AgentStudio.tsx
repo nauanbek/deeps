@@ -1,8 +1,11 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
-import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import { Button } from '../components/common/Button';
 import { ToastContainer } from '../components/common/Toast';
 import { AgentList } from '../components/agents/AgentList';
+import { PageLayout, PageHeader } from '../components/common/PageLayout';
+import { SearchInput } from '../components/common/SearchInput';
+import { EmptyState } from '../components/common/EmptyState';
 import PageErrorBoundary from '../components/common/PageErrorBoundary';
 import ModalErrorBoundary from '../components/common/ModalErrorBoundary';
 import { useAgents, useCreateAgent, useUpdateAgent, useDeleteAgent } from '../hooks/useAgents';
@@ -130,73 +133,74 @@ export const AgentStudio: React.FC = () => {
 
   return (
     <PageErrorBoundary>
-      <main className="space-y-6">
+      <PageLayout>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Agent Studio</h1>
-          <p className="text-gray-600 mt-2">
-            Create, configure, and manage your AI agents
-          </p>
-        </div>
-        <Button
-          variant="primary"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="self-start sm:self-auto"
-        >
-          <PlusIcon className="w-5 h-5 mr-2" />
-          Create Agent
-        </Button>
-      </div>
+        <PageHeader
+          title="Agent Studio"
+          subtitle="Create, configure, and manage your AI agents"
+          action={
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setIsCreateModalOpen(true)}
+              leftIcon={<PlusIcon className="w-4 h-4" />}
+            >
+              Create Agent
+            </Button>
+          }
+        />
 
-      {/* Search Bar */}
-      {agents && agents.length > 0 && (
-        <div className="relative">
-          <label htmlFor="agent-search" className="sr-only">
-            Search agents
-          </label>
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+        {/* Search Bar */}
+        {agents && agents.length > 0 && (
+          <div className="mb-6">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search agents by name, description, or model..."
+              showShortcut={true}
+            />
           </div>
-          <input
-            id="agent-search"
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus-visible:outline-none focus-visible:placeholder-gray-400 focus-visible:ring-1 focus-visible:ring-primary-500 focus-visible:border-primary-500 sm:text-sm"
-            placeholder="Search agents by name, description, or model..."
+        )}
+
+        {/* Agent List */}
+        <AgentList
+          agents={filteredAgents}
+          isLoading={isLoading}
+          isError={isError}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onExecute={handleExecute}
+          onAdvancedConfig={handleAdvancedConfig}
+          onManageTools={handleManageTools}
+          onRetry={refetch}
+        />
+
+        {/* Search results message */}
+        {searchQuery && filteredAgents.length === 0 && !isLoading && (
+          <EmptyState
+            variant="search"
+            title="No agents found"
+            description={`No agents matching "${searchQuery}"`}
+            action={{
+              label: 'Clear search',
+              onClick: () => setSearchQuery(''),
+            }}
           />
-        </div>
-      )}
+        )}
 
-      {/* Agent List */}
-      <AgentList
-        agents={filteredAgents}
-        isLoading={isLoading}
-        isError={isError}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onExecute={handleExecute}
-        onAdvancedConfig={handleAdvancedConfig}
-        onManageTools={handleManageTools}
-        onRetry={refetch}
-      />
-
-      {/* Search results message */}
-      {searchQuery && filteredAgents.length === 0 && !isLoading && (
-        <div className="text-center py-12">
-          <p className="text-gray-600">
-            No agents found matching "{searchQuery}"
-          </p>
-          <Button
-            variant="ghost"
-            onClick={() => setSearchQuery('')}
-            className="mt-2"
-          >
-            Clear search
-          </Button>
-        </div>
-      )}
+        {/* Empty state when no agents exist */}
+        {!isLoading && !isError && agents && agents.length === 0 && (
+          <EmptyState
+            variant="default"
+            icon={<CpuChipIcon className="w-12 h-12" />}
+            title="No agents yet"
+            description="Get started by creating your first AI agent"
+            action={{
+              label: 'Create Agent',
+              onClick: () => setIsCreateModalOpen(true),
+            }}
+          />
+        )}
 
         {/* Create Modal */}
         {isCreateModalOpen && (
@@ -282,7 +286,7 @@ export const AgentStudio: React.FC = () => {
 
         {/* Toast Notifications */}
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
-      </main>
+      </PageLayout>
     </PageErrorBoundary>
   );
 };
