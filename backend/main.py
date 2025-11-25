@@ -54,23 +54,35 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI application
+# Disable API documentation endpoints in production for security
+_is_development = settings.ENVIRONMENT == "development"
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="Enterprise-grade administrative interface for creating, configuring, and managing AI agents",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if _is_development else None,
+    redoc_url="/redoc" if _is_development else None,
+    openapi_url="/openapi.json" if _is_development else None,
     lifespan=lifespan,
 )
 
-# Configure CORS middleware
+# Configure CORS middleware with restricted headers for security
+# Restrict allowed headers to only what's needed (prevents header-based attacks)
+ALLOWED_HEADERS = [
+    "Content-Type",
+    "Authorization",
+    "Accept",
+    "Origin",
+    "X-Requested-With",
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=ALLOWED_HEADERS,
 )
 
 # Add rate limiting middleware (Problem #15)
