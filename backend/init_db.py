@@ -123,11 +123,12 @@ async def seed_data() -> None:
             await session.commit()
 
             print("✓ Seeded initial data:")
-            print(f"  - User: {admin_user.username} (password: admin123)")
+            print(f"  - User: {admin_user.username}")
             print(f"  - Agent: {sample_agent.name}")
             print(f"  - Tools: {search_tool.name}, {code_tool.name}")
-            print("\n⚠️  SECURITY WARNING: Default password 'admin123' is INSECURE!")
-            print("⚠️  Change it immediately at first login or via the API")
+            print("\n⚠️  SECURITY WARNING: Default credentials created!")
+            print("⚠️  See docs/CREDENTIALS.md for default password")
+            print("⚠️  Change password immediately at first login or via the API")
 
         except Exception as e:
             await session.rollback()

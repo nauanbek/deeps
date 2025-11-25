@@ -32,6 +32,16 @@ export const useExecutionWebSocket = (
       wsRef.current = ws;
 
       ws.onopen = () => {
+        // Send JWT token for authentication immediately after connection
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          ws.send(JSON.stringify({ type: 'auth', token }));
+        } else {
+          console.error('No auth token found for WebSocket authentication');
+          setError('Authentication required');
+          ws.close();
+          return;
+        }
         setIsConnected(true);
         setError(null);
       };

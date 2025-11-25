@@ -888,12 +888,16 @@ class AnalyticsService:
                 execution.estimated_cost or Decimal("0.0")
             )
 
+        # Pre-fetch all agent names in a single query (fixes N+1 query issue)
+        agent_ids = list(agent_costs.keys())
+        agents_query = select(Agent.id, Agent.name).where(Agent.id.in_(agent_ids))
+        agents_result = await db.execute(agents_query)
+        agents_by_id = {row[0]: row[1] for row in agents_result.all()}
+
         # Get agent names and calculate projections
         breakdown_by_agent = []
         for agent_id, data in agent_costs.items():
-            agent_query = select(Agent.name).where(Agent.id == agent_id)
-            agent_result = await db.execute(agent_query)
-            agent_name = agent_result.scalar_one_or_none() or f"Agent {agent_id}"
+            agent_name = agents_by_id.get(agent_id) or f"Agent {agent_id}"
 
             agent_daily_cost = data["cost"] / lookback_days if lookback_days > 0 else 0.0
             agent_projected_cost = agent_daily_cost * 30

@@ -11,6 +11,7 @@ Provides safe database query access with:
 import asyncio
 import re
 from typing import Any, Dict, List
+from urllib.parse import quote
 
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_community.utilities.sql_database import SQLDatabase
@@ -242,8 +243,13 @@ class PostgreSQLTool(BaseLangChainTool):
         password = config["password"]
         ssl_mode = config.get("ssl_mode", "require")
 
-        # Build base URL
-        url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+        # URL-encode username and password to handle special characters safely
+        # This prevents credential exposure in logs and handles special chars like @, :, /, etc.
+        encoded_username = quote(username, safe='')
+        encoded_password = quote(password, safe='')
+
+        # Build base URL with encoded credentials
+        url = f"postgresql://{encoded_username}:{encoded_password}@{host}:{port}/{database}"
 
         # Add SSL mode
         if ssl_mode != "disable":

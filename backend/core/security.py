@@ -31,8 +31,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     try:
         return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
-        # If hash is invalid or verification fails, return False
+    except (ValueError, TypeError):
+        # ValueError: Invalid hash format or corrupted hash
+        # TypeError: Invalid input types (None, non-string, etc.)
         return False
 
 

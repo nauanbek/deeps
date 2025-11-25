@@ -83,8 +83,12 @@ class LockoutService:
         """
         redis_client = await self._get_redis()
         if redis_client is None:
-            # Redis unavailable - cannot enforce lockout
-            return False
+            # Redis unavailable - FAIL SECURE: Block all logins when Redis is down
+            # This prevents brute force attacks during Redis outages
+            logger.warning(
+                "Redis unavailable - failing secure. Login blocked for security."
+            )
+            return True  # Treat as locked when Redis unavailable
 
         lockout_key = self._lockout_key(username)
 

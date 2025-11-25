@@ -182,6 +182,8 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
   const isEditMode = !!tool;
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Track which password fields have been modified to avoid exposing credentials in DOM
+  const [modifiedPasswordFields, setModifiedPasswordFields] = useState<Set<string>>(new Set());
 
   const { success: showSuccess, error: showError } = useToast();
   const createTool = useCreateExternalTool();
@@ -211,12 +213,24 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
   // Initialize form values
   useEffect(() => {
     if (isOpen) {
+      // Reset password tracking state
+      setModifiedPasswordFields(new Set());
+
       if (tool) {
-        // Edit mode - populate with existing tool
+        // Edit mode - populate with existing tool BUT clear password fields
+        // to prevent credential exposure in DOM
+        const sanitizedConfig = { ...tool.configuration };
+        const passwordFields = FIELD_CONFIGS[tool.tool_type]
+          ?.filter((f) => f.type === 'password')
+          .map((f) => f.name) || [];
+        passwordFields.forEach((fieldName) => {
+          sanitizedConfig[fieldName] = ''; // Clear password values
+        });
+
         reset({
           tool_name: tool.tool_name,
           tool_type: tool.tool_type,
-          configuration: tool.configuration,
+          configuration: sanitizedConfig,
         });
       } else {
         // Create mode - initialize with template
@@ -257,6 +271,18 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
         .split(',')
         .map((s: string) => s.trim())
         .filter((s: string) => s);
+    }
+
+    // In edit mode, remove unmodified password fields to preserve existing credentials
+    if (isEditMode) {
+      const passwordFields = FIELD_CONFIGS[selectedToolType]
+        ?.filter((f) => f.type === 'password')
+        .map((f) => f.name) || [];
+      passwordFields.forEach((fieldName) => {
+        if (!modifiedPasswordFields.has(fieldName)) {
+          delete processedConfig[fieldName];
+        }
+      });
     }
 
     try {
@@ -425,6 +451,10 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
               }
 
               if (field.type === 'password') {
+                // In edit mode, show placeholder if field wasn't modified
+                const wasModified = modifiedPasswordFields.has(field.name);
+                const displayValue = isEditMode && !wasModified ? '' : String(configValue || '');
+
                 return (
                   <div key={field.name}>
                     <label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-1">
@@ -435,11 +465,14 @@ export const ExternalToolConfigModal: React.FC<ExternalToolConfigModalProps> = (
                       <Input
                         id={field.name}
                         type={showPassword[field.name] ? 'text' : 'password'}
-                        value={String(configValue || '')}
+                        value={displayValue}
                         onChange={(e) => {
+                          // Track that this password field was modified
+                          setModifiedPasswordFields((prev) => new Set(prev).add(field.name));
                           setValue(`configuration.${field.name}`, e.target.value);
                         }}
-                        placeholder={isEditMode ? '***ENCRYPTED***' : ''}
+                        placeholder={isEditMode && !wasModified ? '(leave empty to keep existing)' : ''}
+                        autoComplete="new-password"
                       />
                       <button
                         type="button"

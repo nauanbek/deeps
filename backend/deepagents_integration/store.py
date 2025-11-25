@@ -6,6 +6,7 @@ agent executions and threads.
 """
 
 import base64
+import binascii
 from typing import Dict, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,7 +83,9 @@ class PostgreSQLStore:
             try:
                 # Try base64 decode first (for binary data)
                 return base64.b64decode(file_record.value)
-            except Exception:
+            except (binascii.Error, ValueError):
+                # binascii.Error: Invalid base64 characters
+                # ValueError: Invalid base64 padding or length
                 # Fall back to UTF-8 (for legacy text data)
                 return file_record.value.encode('utf-8')
         return None
